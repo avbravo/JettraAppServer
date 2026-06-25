@@ -1,8 +1,15 @@
 package com.jettra.server.openapi;
 
+import io.jettra.rest.annotations.POST;
+import io.jettra.rest.annotations.DELETE;
+import io.jettra.rest.annotations.GET;
+import io.jettra.rest.annotations.PathParam;
+import io.jettra.rest.annotations.HeaderParam;
+import io.jettra.rest.annotations.Path;
+import io.jettra.rest.annotations.QueryParam;
+import io.jettra.rest.annotations.PUT;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.jettra.rest.annotations.*;
 import com.jettra.server.openapi.annotations.*;
 
 import java.lang.reflect.Method;

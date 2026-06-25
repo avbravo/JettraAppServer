@@ -1,8 +1,7 @@
 package com.jettra.server.autentification.entity;
 
-import com.jettra.server.autentification.entity.JUser;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import io.jettra.rules.validations.NotNull;
+import io.jettra.rules.validations.Size;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.UUID;

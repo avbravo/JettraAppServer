@@ -3,10 +3,8 @@ package com.jettra.server.db.security;
 import com.jettra.server.autentification.entity.JCredential;
 import com.jettra.server.autentification.entity.JRole;
 import com.jettra.server.autentification.entity.JUser;
-import com.jettra.server.autentification.*;
 import com.jettra.server.autentification.repository.*;
 import java.io.File;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -67,7 +65,7 @@ public class JettraSecurityDBTest {
         // Run Initializer
         JettraSecurityDBInitializer.initializeIfEmpty();
 
-        JRoleRepository roleRepo = new JRoleRepositoryImpl();
+        com.jettra.server.autentification.repository.JRoleRepository roleRepo = new JRoleRepositoryImpl();
         JUserRepository userRepo = new JUserRepositoryImpl();
         JCredentialRepository credRepo = new JCredentialRepositoryImpl();
 

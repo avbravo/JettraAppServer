@@ -1,14 +1,14 @@
 package com.jettra.server.autentification.controller;
 
-import com.jettra.core.inject.annotation.Inject;
+import io.jettra.core.inject.annotation.Inject;
 import com.jettra.jwt.JettraJWT;
 import com.jettra.jwt.request.LoginResponse;
-import com.jettra.rest.annotations.GET;
-import com.jettra.rest.annotations.Path;
-import com.jettra.rest.annotations.PermitAll;
-import com.jettra.rest.annotations.Produces;
-import com.jettra.rest.annotations.QueryParam;
-import com.jettra.rest.core.Response;
+import io.jettra.rest2.core.Response;
+import io.jettra.rest.annotations.GET;
+import io.jettra.rest.annotations.Path;
+import io.jettra.rest.annotations.PermitAll;
+import io.jettra.rest.annotations.Produces;
+import io.jettra.rest.annotations.QueryParam;
 import com.jettra.server.autentification.entity.JCredential;
 import com.jettra.server.autentification.entity.JRole;
 import com.jettra.server.autentification.entity.JUser;

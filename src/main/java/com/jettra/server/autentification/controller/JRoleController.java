@@ -1,10 +1,17 @@
 package com.jettra.server.autentification.controller;
 
-import com.jettra.core.inject.annotation.Inject;
-import com.jettra.rest.annotations.accreditation.DeclareRoles;
-import com.jettra.rest.annotations.accreditation.RolesAllowed;
-import com.jettra.rest.annotations.*;
-import com.jettra.rest.core.Response;
+import io.jettra.rest.annotations.POST;
+import io.jettra.rest.annotations.DELETE;
+import io.jettra.rest.annotations.Consumes;
+import io.jettra.rest.annotations.GET;
+import io.jettra.rest.annotations.Secured;
+import io.jettra.rest.annotations.Produces;
+import io.jettra.rest.annotations.PathParam;
+import io.jettra.rest.annotations.Path;
+import io.jettra.core.inject.annotation.Inject;
+import io.jettra.rest.annotations.accreditation.DeclareRoles;
+import io.jettra.rest.annotations.accreditation.RolesAllowed;
+import io.jettra.rest2.core.Response;
 import com.jettra.server.autentification.entity.JRole;
 import com.jettra.server.autentification.repository.JRoleRepository;
 import java.util.List;
