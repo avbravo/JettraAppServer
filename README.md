@@ -1,4 +1,4 @@
-# 🚀 Bienvenido a JettraServer
+# 🚀 Bienvenido a JettraAppServer
 
 **JettraServer** es un servidor Java ultra-ligero y altamente optimizado. Construido sobre los estándares más recientes orientados a **Java 25**, saca provecho del modelo de ejecución concurrente unificado (Virtual Threads) y las directrices de Project Leyden para ofrecer tiempos de respuesta y de arranque (AOT) drásticamente bajos.
 
@@ -33,7 +33,7 @@ mvn clean install
 **2. Iniciar el servidor (Modo Standalone)**
 Levanta el servidor invocando directamente el archivo JAR optimizado:
 ```bash
-java -jar target/JettraServer-1.0-SNAPSHOT.jar
+java -jar target/JettraAppServer-1.0-SNAPSHOT.jar
 ```
 *La terminal mostrará un aviso de "Started" indicando el puerto final en el que está escuchando.*
 
@@ -46,7 +46,7 @@ JettraServer está pensado primordialmente para incrustarse en otras aplicacione
 ```xml
 <dependency>
     <groupId>com.jettra</groupId>
-    <artifactId>JettraServer</artifactId>
+    <artifactId>JettraAppServer</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -69,6 +69,6 @@ docker build -t jettraserver:latest .
 Puedes iniciar un nuevo contenedor mapeando el puerto designado al puerto real externo de tu máquina (ej. `8080` a `8080` u otro que hayas configurado en properties).
 
 ```bash
-docker run -d -p 8080:8080 --name servidor-backend jettraserver:latest
+docker run -d -p 8080:8080 --name servidor-backend jettraappserver:latest
 ```
 *(Si decidiste configurar tu aplicación con `server.port=9090`, asegúrate de mapear `docker run -d -p 9090:9090` consecuentemente).*
