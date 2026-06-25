@@ -1,7 +1,7 @@
 package com.jettra.server.autentification.controller;
 
 import io.jettra.core.inject.annotation.Inject;
-import com.jettra.jwt.JettraJWT;
+import io.jettra.jwt.JettraJWT;
 import com.jettra.jwt.request.LoginResponse;
 import io.jettra.rest2.core.Response;
 import io.jettra.rest.annotations.GET;
