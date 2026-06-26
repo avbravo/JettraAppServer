@@ -10,8 +10,8 @@ import io.jettra.server.autentification.repository.JUserRepository;
 import io.jettra.server.autentification.entity.JCredential;
 import io.jettra.server.autentification.entity.JRole;
 import io.jettra.server.autentification.entity.JUser;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import io.jettra.json.JettraJson;
+import io.jettra.json.JettraJsonBuilder;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.*;
@@ -26,7 +26,7 @@ public class AdminConsoleHandler implements HttpHandler {
     private final JRoleRepository roleRepo = new JRoleRepositoryImpl();
     private final JUserRepository userRepo = new JUserRepositoryImpl();
     private final JCredentialRepository credRepo = new JCredentialRepositoryImpl();
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final JettraJson gson = new JettraJsonBuilder().setPrettyPrinting().create();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {

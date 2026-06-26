@@ -15,8 +15,8 @@ import io.jettra.rest.annotations.HeaderParam;
 import io.jettra.rest.annotations.Path;
 import io.jettra.rest.annotations.QueryParam;
 import io.jettra.rest.annotations.PUT;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import io.jettra.json.JettraJson;
+import io.jettra.json.JettraJsonBuilder;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -193,7 +193,7 @@ public class OpenApiGenerator {
         globalSecurity.add(req);
         openapi.put("security", globalSecurity);
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        JettraJson gson = new JettraJsonBuilder().setPrettyPrinting().create();
         return gson.toJson(openapi);
     }
 }
