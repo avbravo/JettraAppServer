@@ -6,7 +6,7 @@ Es una clase para encriptar y desencriptar password.
 
 ```java
 
-import com.jettra.server.autentification.JettraCrypto;
+import io.jettra.server.autentification.JettraCrypto;
 // Encriptar
 String passwordEncriptado = JettraCrypto.encrypt("superSecreto","my-frase-secreta");
 System.out.println("Encriptado: " + passwordEncriptado);

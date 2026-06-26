@@ -80,7 +80,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.jettra.server.JettraServer</mainClass>
+                            <mainClass>io.jettra.server.JettraServer</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

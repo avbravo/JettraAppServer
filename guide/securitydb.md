@@ -163,7 +163,7 @@ This double-locking mechanism guarantees full acid-like serialization safety ins
 To launch the console on a server node during development, execute the following Maven command:
 
 ```bash
-mvn exec:java -Dexec.mainClass="com.jettra.server.autentification.SecurityCLI"
+mvn exec:java -Dexec.mainClass="io.jettra.server.autentification.SecurityCLI"
 ```
 
 You can also launch it directly from your packaged application by adding support for the `-console` argument in your main class:
@@ -175,7 +175,7 @@ java -jar target/myapplication.jar -console
 ```java
 public static void main(String[] args) {
     if (args != null && args.length > 0 && args[0].equals("-console")) {
-        com.jettra.server.autentification.SecurityCLI.main(args);
+        io.jettra.server.autentification.SecurityCLI.main(args);
         return;
     }
     // Continue with your standard application startup...

@@ -17,8 +17,8 @@ Dichas propiedades se pueden inyectar directamente en los atributos de cualquier
 
 ```java
 import java.io.Serializable;
-import com.jettra.server.config.JettraConfigProperty;
-import com.jettra.server.core.IO;
+import io.jettra.server.config.JettraConfigProperty;
+import io.jettra.server.core.IO;
 
 public class ExampleRest implements Serializable {
 

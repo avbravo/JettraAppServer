@@ -9,9 +9,9 @@ A diferencia de los Handlers normales, los controladores REST con soporte para O
 Para habilitar OpenAPI, registra `OpenApiHandler` y `SwaggerUIHandler` en tu aplicación (por ejemplo en tu método `main`):
 
 ```java
-import com.jettra.server.JettraServer;
-import com.jettra.server.openapi.OpenApiHandler;
-import com.jettra.server.openapi.SwaggerUIHandler;
+import io.jettra.server.JettraServer;
+import io.jettra.server.openapi.OpenApiHandler;
+import io.jettra.server.openapi.SwaggerUIHandler;
 import com.jettra.example.controller.library.AuthorController;
 import java.util.List;
 
@@ -42,7 +42,7 @@ Al iniciar tu servidor, puedes navegar a `http://localhost:8080/swagger-ui` (aju
 
 JettraServer usa las anotaciones de enrutamiento ubicadas en `com.jettra.rest.annotations` (`@Path`, `@GET`, `@POST`, `@PathParam`, `@QueryParam`, `@HeaderParam`) para deducir la estructura base.
 
-Además, en el paquete `com.jettra.server.openapi.annotations` se proveen anotaciones extra para enriquecer el documento:
+Además, en el paquete `io.jettra.server.openapi.annotations` se proveen anotaciones extra para enriquecer el documento:
 
 - `@OpenApi(title = "...", version = "...", description = "...")`: Anotación a nivel de clase para información general de la API.
 - `@Operation(summary = "...", description = "...")`: Anota los métodos para describir la operación específica.
@@ -56,7 +56,7 @@ Además, en el paquete `com.jettra.server.openapi.annotations` se proveen anotac
 
 ```java
 import com.jettra.rest.annotations.*;
-import com.jettra.server.openapi.annotations.*;
+import io.jettra.server.openapi.annotations.*;
 
 @OpenApi(title = "Librería API", version = "v1.0")
 @Path("/api/authors")

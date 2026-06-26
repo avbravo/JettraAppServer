@@ -1,9 +1,15 @@
-package com.jettra.server.db.security;
+package io.jettra.server.db.security;
 
-import com.jettra.server.autentification.entity.JCredential;
-import com.jettra.server.autentification.entity.JRole;
-import com.jettra.server.autentification.entity.JUser;
-import com.jettra.server.autentification.repository.*;
+import io.jettra.server.autentification.repository.JRoleRepository;
+import io.jettra.server.autentification.repository.JUserRepository;
+import io.jettra.server.autentification.repository.JCredentialRepository;
+import io.jettra.server.autentification.repository.JRoleRepositoryImpl;
+import io.jettra.server.autentification.repository.JCredentialRepositoryImpl;
+import io.jettra.server.autentification.repository.JUserRepositoryImpl;
+import io.jettra.server.autentification.repository.JettraSecurityDBInitializer;
+import io.jettra.server.autentification.entity.JCredential;
+import io.jettra.server.autentification.entity.JRole;
+import io.jettra.server.autentification.entity.JUser;
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -66,7 +72,7 @@ public class JettraSecurityDBTest {
         // Run Initializer
         JettraSecurityDBInitializer.initializeIfEmpty();
 
-        com.jettra.server.autentification.repository.JRoleRepository roleRepo = new JRoleRepositoryImpl();
+        io.jettra.server.autentification.repository.JRoleRepository roleRepo = new JRoleRepositoryImpl();
         JUserRepository userRepo = new JUserRepositoryImpl();
         JCredentialRepository credRepo = new JCredentialRepositoryImpl();
 
