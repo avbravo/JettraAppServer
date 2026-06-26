@@ -26,7 +26,7 @@
             <groupId>io.jettra</groupId>
             <artifactId>JettraJSON</artifactId>
             <version>${jettra.json.version}</version>
-            <scope>provided</scope>
+               <scope>provided</scope>
         </dependency>
 
         <!-- Jettra JWT Library -->
