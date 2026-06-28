@@ -33,7 +33,7 @@ mvn clean install
 **2. Iniciar el servidor (Modo Standalone)**
 Levanta el servidor invocando directamente el archivo JAR optimizado:
 ```bash
-java -jar target/JettraAppServer-1.0-SNAPSHOT.jar
+java -jar target/JettraAppServer-1.0.0-SNAPSHOT.jar
 ```
 *La terminal mostrará un aviso de "Started" indicando el puerto final en el que está escuchando.*
 
@@ -47,7 +47,7 @@ JettraServer está pensado primordialmente para incrustarse en otras aplicacione
 <dependency>
     <groupId>com.jettra</groupId>
     <artifactId>JettraAppServer</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 

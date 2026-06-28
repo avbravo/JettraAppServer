@@ -10,7 +10,7 @@ LABEL description="Contenedor para JettraAppServer optimizado"
 WORKDIR /app
 
 # Copiar el archivo empaquetado JAR desde la fase de build
-COPY target/JettraAppServer-1.0-SNAPSHOT.jar /app/JettraAppServer.jar
+COPY target/JettraAppServer-1.0.0-SNAPSHOT.jar /app/JettraAppServer.jar
 
 # Exponer el puerto por el que el servidor HTTP / REST va a escuchar tráfico
 EXPOSE 8080
