@@ -14,6 +14,7 @@ import io.jettra.rest.annotations.accreditation.RolesAllowed;
 import io.jettra.rest.core.Response;
 import io.jettra.server.autentification.entity.JRole;
 import io.jettra.server.autentification.repository.JRoleRepository;
+import io.jettra.server.discoverer.Discovered;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,6 +22,7 @@ import java.util.UUID;
 @Path("/autentification/jroles")
 @DeclareRoles({"ADMIN", "MANAGER"})
 @RolesAllowed({"ADMIN"})
+@Discovered
 public class JRoleController {
     @Inject
     JRoleRepository jRoleRepository = new io.jettra.server.autentification.repository.JRoleRepositoryImpl();

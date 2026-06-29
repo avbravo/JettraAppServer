@@ -14,6 +14,7 @@ import io.jettra.server.autentification.entity.JRole;
 import io.jettra.server.autentification.entity.JUser;
 import io.jettra.server.autentification.repository.JCredentialRepository;
 import io.jettra.server.autentification.repository.JUserRepository;
+import io.jettra.server.discoverer.Discovered;
 import io.jettra.server.openapi.annotations.OpenApi;
 import io.jettra.server.openapi.annotations.Operation;
 import io.jettra.server.openapi.annotations.Parameter;
@@ -26,6 +27,7 @@ import java.util.UUID;
 
 @Path("/autentification/auth")
 @OpenApi(title = "Library API", version = "v1.0", description = "API for Library management")
+@Discovered
 public class AuthentificationController {
 
     private static final String JWT_SECRET = "default_secret_key_jettra_rest_2026";
