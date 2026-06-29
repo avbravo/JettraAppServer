@@ -33,6 +33,8 @@ public class SwaggerUIHandler implements HttpHandler {
                 "    window.ui = SwaggerUIBundle({\n" +
                 "      url: '" + openApiUrl + "',\n" +
                 "      dom_id: '#swagger-ui',\n" +
+                "      operationsSorter: 'alpha',\n" +
+                "      tagsSorter: 'alpha',\n" +
                 "    });\n" +
                 "  };\n" +
                 "</script>\n" +
