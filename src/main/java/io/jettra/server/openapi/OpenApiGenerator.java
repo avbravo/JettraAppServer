@@ -111,27 +111,30 @@ public class OpenApiGenerator {
                             param.put("in", "header");
                         } else {
                             // Body parameter
+                            Map<String, Object> requestBodyMap = new LinkedHashMap<>();
                             if (p.isAnnotationPresent(RequestBody.class)) {
                                 RequestBody reqBody = p.getAnnotation(RequestBody.class);
-                                Map<String, Object> requestBodyMap = new LinkedHashMap<>();
                                 if (!reqBody.description().isEmpty()) requestBodyMap.put("description", reqBody.description());
                                 requestBodyMap.put("required", reqBody.required());
-                                
-                                Map<String, Object> content = new LinkedHashMap<>();
-                                Map<String, Object> mediaType = new LinkedHashMap<>();
-                                Map<String, Object> bodySchema = new LinkedHashMap<>();
-                                bodySchema.put("type", "object");
-                                if (p.isAnnotationPresent(Schema.class)) {
-                                    Schema s = p.getAnnotation(Schema.class);
-                                    if (!s.description().isEmpty()) bodySchema.put("description", s.description());
-                                    if (!s.example().isEmpty()) bodySchema.put("example", s.example());
-                                }
-                                mediaType.put("schema", bodySchema);
-                                content.put("application/json", mediaType);
-                                requestBodyMap.put("content", content);
-                                
-                                operation.put("requestBody", requestBodyMap);
+                            } else {
+                                requestBodyMap.put("required", true);
                             }
+                                
+                            Map<String, Object> content = new LinkedHashMap<>();
+                            Map<String, Object> mediaType = new LinkedHashMap<>();
+                            Map<String, Object> bodySchema = new LinkedHashMap<>();
+                            bodySchema.put("type", "object");
+                            if (p.isAnnotationPresent(Schema.class)) {
+                                Schema s = p.getAnnotation(Schema.class);
+                                if (!s.description().isEmpty()) bodySchema.put("description", s.description());
+                                if (!s.example().isEmpty()) bodySchema.put("example", s.example());
+                            }
+                            mediaType.put("schema", bodySchema);
+                            content.put("application/json", mediaType);
+                            requestBodyMap.put("content", content);
+                            
+                            operation.put("requestBody", requestBodyMap);
+                            
                             continue; // Ignored in parameters list
                         }
 
