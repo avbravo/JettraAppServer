@@ -29,7 +29,7 @@ import java.util.HashMap;
 public class AuthController {
     @JettraConfigProperty(name = "server.JWT_SECRET")
     private String JWT_SECRET;
-    @JettraConfigProperty(name = "server.JWT_EXPIRATION")
+    @JettraConfigProperty(name = "server.JWT_EXPIRATION")   
     private Integer JWT_EXPIRATION;
 
     
