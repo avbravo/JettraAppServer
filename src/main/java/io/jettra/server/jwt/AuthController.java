@@ -53,23 +53,24 @@ public class AuthController {
             return Response.status(Response.Status.UNAUTHORIZED).entity("{\"error\":\"Invalid credentials\"}").build();
         }
 
-        java.util.Optional<JCredential> optCred = jCredentialRepository.findAll().stream()
-                .filter(c -> c.username().equals(request.getUsername()) && c.passwordHash().equals(request.getPassword()))
-                .findFirst();
+        java.util.Optional<JCredential> optCred = jCredentialRepository.findByUsernamePassword(request.getUsername(), request.getPassword());
 
         if (optCred.isEmpty()) {
             return Response.status(Response.Status.UNAUTHORIZED).entity("{\"error\":\"Invalid credentials\"}").build();
         }
 
-       JUser jUser = optCred.get().jUser();
+        JUser jUser = optCred.get().jUser();
         java.util.List<String> roleNames = new java.util.ArrayList<>();
         if (jUser != null && jUser.jRoles()!= null) {
             for (JRole r : jUser.jRoles()) {
                 roleNames.add(r.name());
             }
         }
+        
+        String secret = (JWT_SECRET != null) ? JWT_SECRET : "default_secret_key_jettra_rest_2026";
+        long expiration = (JWT_EXPIRATION != null) ? JWT_EXPIRATION : 3600000;
 
-        JettraJWT jwt = new JettraJWT(JWT_SECRET, JWT_EXPIRATION);
+        JettraJWT jwt = new JettraJWT(secret, expiration);
         java.util.Map<String, Object> claims = new HashMap<>();
         claims.put("roles", roleNames);
         String token = "Bearer " + jwt.generateToken(claims, request.getUsername());
