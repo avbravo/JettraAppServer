@@ -93,16 +93,16 @@ public class JettraServer {
      */
     public void start() {
         if (isRunning) {
-            System.out.println("JettraServer ya se encuentra en ejecución.");
+            IO.println("JettraServer ya se encuentra en ejecución.");
             return;
         }
-        System.out.println("Starting JettraServer...");
-        System.out.println("Java version: " + System.getProperty("java.version"));
+        IO.println("Starting JettraServer...");
+        IO.println("Java version: " + System.getProperty("java.version"));
 
         // Initialize JettraSecurityDB if backend server is true
         String typeBackend = io.jettra.server.config.JettraConfig.getProperty("server.typebackend");
         if ("true".equalsIgnoreCase(typeBackend)) {
-            System.out.println("[JettraServer] server.typebackend=true detected. Initializing JettraSecurityDB...");
+            IO.println("[JettraServer] server.typebackend=true detected. Initializing JettraSecurityDB...");
             io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty();
         }
 
@@ -110,7 +110,7 @@ public class JettraServer {
         this.addHandler("/securitydb/admin", new io.jettra.server.autentification.AdminConsoleHandler());
 
         // Inicializamos componentes abstractos/ejemplo si los hay
-        System.out.println("Initializing ExampleRest and ConfigInjector...");
+        IO.println("Initializing ExampleRest and ConfigInjector...");
         io.jettra.server.test.ExampleRest example = new io.jettra.server.test.ExampleRest();
         io.jettra.server.config.ConfigInjector.inject(example);
         example.draw();
@@ -185,14 +185,14 @@ public class JettraServer {
             String compactHeader = io.jettra.server.config.JettraConfig.getProperty("server.compactheader");
             
             if (isJava25 || "true".equalsIgnoreCase(compactHeader)) {
-                System.out.println("[JettraServer] Optimizando para Java 25: Uso de Compact Object Headers (JEP 450) detectado o configurado.");
+                IO.println("[JettraServer] Optimizando para Java 25: Uso de Compact Object Headers (JEP 450) detectado o configurado.");
             }
 
             startHotReloadWatcher();
 
-            System.out.println("JettraServer HTTP server started on port " + port);
-            System.out.println("JettraServer HTTP server contextpath = " + getContextPath());
-            System.out.println("Features initialized: REST, gRPC, JWT, Health, FaultTolerance, Session, DI, Security (XSS).");
+            IO.println("JettraServer HTTP server started on port " + port);
+            IO.println("JettraServer HTTP server contextpath = " + getContextPath());
+            IO.println("Features initialized: REST, gRPC, JWT, Health, FaultTolerance, Session, DI, Security (XSS).");
             
             // Iniciar AutocloneManager si estamos en el servidor principal (no en un clon)
             if (customPort <= 0) {
@@ -212,14 +212,14 @@ public class JettraServer {
      */
     public void stop() {
         if (!isRunning || server == null) {
-            System.out.println("JettraServer no está en ejecución.");
+            IO.println("JettraServer no está en ejecución.");
             return;
         }
-        System.out.println("Stopping JettraServer...");
+        IO.println("Stopping JettraServer...");
         
         // Cierra todas las sesiones de todos los usuarios
         io.jettra.server.core.JettraContext.clearSessions();
-        System.out.println("[JettraServer] Todas las sesiones han sido cerradas.");
+        IO.println("[JettraServer] Todas las sesiones han sido cerradas.");
 
         String expiredValue = io.jettra.server.config.JettraConfig.getProperty("server.session.expired");
         int expired = (expiredValue != null && !expiredValue.isBlank()) ? Integer.parseInt(expiredValue) : 0;
@@ -227,7 +227,7 @@ public class JettraServer {
         if (hotReloadThread != null) hotReloadThread.interrupt();
         if (autocloneManager != null) autocloneManager.stop();
         isRunning = false;
-        System.out.println("JettraServer detenido exitosamente.");
+        IO.println("JettraServer detenido exitosamente.");
     }
 
     /**
@@ -245,8 +245,8 @@ public class JettraServer {
         }
         int newPort = basePort + cloneCount;
 
-        System.out.println("[Autoclonación Dinámica] Iniciando réplica del servidor en el puerto " + newPort + "...");
-        System.out.println("[Autoclonación Dinámica] Se están transfiriendo los objetos más viejos y equilibrando la carga para mejorar el rendimiento.");
+        IO.println("[Autoclonación Dinámica] Iniciando réplica del servidor en el puerto " + newPort + "...");
+        IO.println("[Autoclonación Dinámica] Se están transfiriendo los objetos más viejos y equilibrando la carga para mejorar el rendimiento.");
 
         JettraServer replica = new JettraServer();
         replica.setPort(newPort);
@@ -354,13 +354,13 @@ public class JettraServer {
                 if (!Files.exists(path)) return;
                 
                 path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
-                System.out.println("[HotReload] Watching for changes in target/classes...");
+                IO.println("[HotReload] Watching for changes in target/classes...");
 
                 while (!Thread.currentThread().isInterrupted()) {
                     WatchKey key = watcher.poll(1, TimeUnit.SECONDS);
                     if (key != null) {
                         for (WatchEvent<?> event : key.pollEvents()) {
-                            System.out.println("[HotReload] Change detected: " + event.context());
+                            IO.println("[HotReload] Change detected: " + event.context());
                             restore(); // Full restart for now
                             return; 
                         }
@@ -379,7 +379,7 @@ public class JettraServer {
      * Reinicia / restaura el servidor deteniéndolo e iniciándolo de nuevo.
      */
     public void restore() {
-        System.out.println("Restaurando JettraServer...");
+        IO.println("Restaurando JettraServer...");
         stop();
         start();
     }
