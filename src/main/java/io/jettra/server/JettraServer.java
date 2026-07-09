@@ -96,6 +96,7 @@ public class JettraServer {
             IO.println("JettraServer ya se encuentra en ejecución.");
             return;
         }
+        long startExecutionTime = System.currentTimeMillis();
         IO.println("Starting JettraServer...");
         IO.println("Java version: " + System.getProperty("java.version"));
 
@@ -201,6 +202,8 @@ public class JettraServer {
                 autocloneManager = new io.jettra.server.core.AutocloneManager(this, threshold);
                 autocloneManager.start();
             }
+            long endExecutionTime = System.currentTimeMillis();
+            IO.println("Servidor ejecutado en " + (endExecutionTime - startExecutionTime) + " milisegundos.");
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("Failed to start JettraServer embedded HTTP server.");
