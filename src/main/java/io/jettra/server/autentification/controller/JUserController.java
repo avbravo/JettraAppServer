@@ -30,7 +30,6 @@ public class JUserController {
     @GET
     @Produces("application/json")
     public List<JUser> findAll() {
-        System.out.println("\npaso 1");
         return jUserRepository.findAll();
     }
 
