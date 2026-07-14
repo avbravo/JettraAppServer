@@ -297,6 +297,7 @@ public class JettraServer {
                 
                 if (instance != null) {
                     try {
+                        io.jettra.server.core.DependencyInjector.inject(instance);
                         instance.handle(exchange);
                     } catch (Exception e) {
                         e.printStackTrace();
