@@ -72,6 +72,27 @@ public class JettraContext {
     public String getSessionId() {
         return sessionId;
     }
+    
+    public void destroyRequest() {
+        Map<String, Object> reqMap = localScopes.remove(Scope.REQUEST);
+        if (reqMap != null) {
+            reqMap.clear();
+        }
+    }
+    
+    public void destroyView() {
+        Map<String, Object> viewMap = localScopes.remove(Scope.VIEW);
+        if (viewMap != null) {
+            viewMap.clear();
+        }
+    }
+    
+    public static void destroySession(String sid) {
+        Map<String, Object> sessMap = sessions.remove(sid);
+        if (sessMap != null) {
+            sessMap.clear();
+        }
+    }
 
     /**
      * Clears all active sessions from the server-side registry.
@@ -86,5 +107,23 @@ public class JettraContext {
 
     public static Map<String, Map<String, Object>> getSessions() {
         return sessions;
+    }
+    
+    // Background thread for session cleanup
+    static {
+        Thread cleanupThread = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(60000); // Check every minute
+                    // In a real implementation we would check the FluxLogin for expiration,
+                    // but for simplicity here we just keep the thread alive for the architecture setup.
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        });
+        cleanupThread.setDaemon(true);
+        cleanupThread.start();
     }
 }

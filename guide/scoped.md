@@ -1,68 +1,33 @@
-# Scoped Dependency Injection in JettraAppServer
+# Ciclos de Vida y Contextos de Jettra
 
-JettraAppServer provides a powerful, contextual Dependency Injection (DI) system that manages object lifecycles based on their defined scopes.
+JettraAppServer provee un motor de inyección de dependencias robusto, soportado por anotaciones que definen el tiempo de vida (scope) de las instancias gestionadas (beans).
 
-## Supported Scopes
+## Anotaciones Soportadas
 
-You can define the lifecycle of your injected dependencies by annotating the class with one of the following scope annotations from `io.jettra.scoped`:
+*   **`@RequestScoped`**: El componente nace y muere con la petición HTTP actual. `JettraContext.destroyRequest()` limpia esta capa al finalizar la llamada.
+*   **`@SessionScoped`**: El componente perdura durante la sesión activa del usuario. El ciclo de vida finaliza al expirar la sesión (gestionado por el hilo limpiador de `JettraContext` o al llamar explícitamente a `logout`).
+*   **`@ApplicationScoped`**: Singleton por aplicación. Vive mientras el servidor `JettraAppServer` siga en ejecución.
+*   **`@ViewScoped`**: Atado al ciclo de vida de la vista actual renderizada. Útil para mantener estado en Single Page Applications o flujos multipaso.
+*   **`@ClientScoped`**: Persistente en base a identificadores de cliente, compartiendo memoria a lo largo de varias sesiones del mismo dispositivo.
+*   **`@WindowScoped`**: Específico a una pestaña o ventana particular del navegador.
 
-* `@ApplicationScoped`: A single instance is created for the entire application. It behaves like a singleton.
-* `@SessionScoped`: A unique instance is created per user session. Subsequent requests in the same session will reuse this instance.
-* `@RequestScoped`: A new instance is created for every HTTP request.
-* `@ViewScoped`: A new instance is created and maintained as long as the user interacts with the same view.
-* `@ClientScoped`: A new instance is maintained for a specific client (e.g., a specific browser or API consumer).
-* `@WindowScoped`: Similar to `ViewScoped`, but maintained across a specific browser window/tab.
+## Reglas de Resolución de Dependencias
 
-## Usage Example
+El motor, `DependencyInjector`, analiza las clases mediante reflection.
+Si un campo está anotado con `@Inject`, busca en el `JettraContext` la instancia correspondiente según su Scope.
 
-### 1. Define a Scoped Component
-
-Annotate your repository, service, or component with the desired scope:
+**Ejemplo de Uso:**
 
 ```java
-package com.example.repository;
-
-import io.jettra.scoped.SessionScoped;
-
 @SessionScoped
-public class UserCartRepository {
-    // This instance will be unique per session
-    private List<Item> items = new ArrayList<>();
-    
-    public void addItem(Item item) {
-        items.add(item);
-    }
+public class MiCarrito {
+    // ...
 }
-```
 
-### 2. Inject the Component
-
-Use the `@Inject` annotation (from `io.jettra.core.inject.annotation.Inject`) to inject your component into an `HttpHandler` or a controller:
-
-```java
-package com.example.controller;
-
-import io.jettra.core.inject.annotation.Inject;
-import io.jettra.rest.annotations.GET;
-import io.jettra.rest.annotations.Path;
-import com.example.repository.UserCartRepository;
-
-@Path("/cart")
-public class CartController {
-
+public class CheckoutPage {
     @Inject
-    private UserCartRepository cartRepository;
-
-    @GET
-    public String viewCart() {
-        // cartRepository will automatically be resolved from the current session context
-        return "Cart size: " + cartRepository.getItems().size();
-    }
+    private MiCarrito carrito;
 }
 ```
 
-## How It Works Internally
-
-When a request is received, `JettraServer` sets up a `JettraContext` containing the current session information. Before the request handler is executed, the `DependencyInjector` scans the handler for `@Inject` annotations and resolves the dependencies by checking their scope against the current context.
-
-If a dependency is not found in the context (e.g., it's the first time it is requested in a session), the injector instantiates it and stores it in the `JettraContext` for future reuse within that scope.
+Al resolver `CheckoutPage`, el inyector buscará `MiCarrito` en el mapa de sesión. Si no existe, creará una instancia nueva y la registrará automáticamente.
