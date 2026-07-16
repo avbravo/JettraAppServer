@@ -282,6 +282,17 @@ public class JettraServer {
                 exchange.getResponseHeaders().add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data: mediastream:; connect-src 'self' ws: wss:;");
                 exchange.getResponseHeaders().add("Referrer-Policy", "strict-origin-when-cross-origin");
                 
+                String path = exchange.getRequestURI().getPath();
+                if (!path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains(".")) {
+                    Object credential = JettraContext.getCurrent().get(JettraContext.Scope.SESSION, "credentialFlux");
+                    if (credential == null) {
+                        exchange.getResponseHeaders().set("Location", resolvePath("/login"));
+                        exchange.sendResponseHeaders(302, -1);
+                        exchange.getResponseBody().close();
+                        return;
+                    }
+                }
+                
                 HttpHandler instance = null;
                 if (original instanceof HttpHandler) {
                     instance = (HttpHandler) original;
