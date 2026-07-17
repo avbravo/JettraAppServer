@@ -116,6 +116,8 @@ public class JettraServer {
         io.jettra.server.config.ConfigInjector.inject(example);
         example.draw();
 
+        loadAnnotatedPages();
+
         try {
             int port;
             if (customPort > 0) {
@@ -412,5 +414,48 @@ public class JettraServer {
      */
     public boolean live() {
         return isRunning;
+    }
+
+    private void loadAnnotatedPages() {
+        try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+            java.util.Enumeration<java.net.URL> resources = classLoader.getResources("META-INF/jettra/page.classes");
+
+            while (resources.hasMoreElements()) {
+                java.net.URL url = resources.nextElement();
+                try (java.io.InputStream is = url.openStream();
+                     java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8))) {
+                     
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty() || line.startsWith("#")) {
+                            continue;
+                        }
+                        int separatorIndex = line.indexOf('=');
+                        if (separatorIndex > 0) {
+                            String className = line.substring(0, separatorIndex);
+                            String path = line.substring(separatorIndex + 1);
+                            try {
+                                Class<?> clazz = Class.forName(className, true, classLoader);
+                                if (com.sun.net.httpserver.HttpHandler.class.isAssignableFrom(clazz)) {
+                                    @SuppressWarnings("unchecked")
+                                    Class<? extends com.sun.net.httpserver.HttpHandler> handlerClass = 
+                                        (Class<? extends com.sun.net.httpserver.HttpHandler>) clazz;
+                                    addHandler(path, handlerClass);
+                                    IO.println("[JettraServer] Page registrada automáticamente: " + path + " -> " + className);
+                                } else {
+                                    System.err.println("[JettraServer] Error: La clase " + className + " anotada con @Page no implementa HttpHandler.");
+                                }
+                            } catch (ClassNotFoundException e) {
+                                System.err.println("[JettraServer] Advertencia: No se pudo cargar la clase de página: " + className);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[JettraServer] Error al cargar clases de página desde META-INF/jettra/page.classes: " + e.getMessage());
+        }
     }
 }
