@@ -35,6 +35,25 @@ public class DependencyInjector {
                         System.err.println("[DependencyInjector] Error injecting field " + field.getName() + ": " + e.getMessage());
                     }
                 }
+            } else if (field.isAnnotationPresent(io.jettra.core.inject.annotation.InjectProperties.class)) {
+                io.jettra.core.inject.annotation.InjectProperties propsMeta = field.getAnnotation(io.jettra.core.inject.annotation.InjectProperties.class);
+                String name = propsMeta.name();
+                // Attempt to load the properties file
+                java.util.Properties properties = new java.util.Properties();
+                try (java.io.InputStream is = clazz.getClassLoader().getResourceAsStream(name + ".properties")) {
+                    if (is != null) {
+                        properties.load(is);
+                    } else {
+                        // try fallback with _es or similar
+                        java.io.InputStream is2 = clazz.getClassLoader().getResourceAsStream(name + "_es.properties");
+                        if (is2 != null) properties.load(is2);
+                    }
+                    
+                    field.setAccessible(true);
+                    field.set(target, properties);
+                } catch (Exception e) {
+                    System.err.println("[DependencyInjector] Error loading properties " + name + ": " + e.getMessage());
+                }
             }
         }
     }
