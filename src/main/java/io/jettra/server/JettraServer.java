@@ -436,20 +436,27 @@ public class JettraServer {
                         if (separatorIndex > 0) {
                             String className = line.substring(0, separatorIndex);
                             String path = line.substring(separatorIndex + 1);
-                            try {
-                                Class<?> clazz = Class.forName(className, true, classLoader);
-                                if (com.sun.net.httpserver.HttpHandler.class.isAssignableFrom(clazz)) {
-                                    @SuppressWarnings("unchecked")
-                                    Class<? extends com.sun.net.httpserver.HttpHandler> handlerClass = 
-                                        (Class<? extends com.sun.net.httpserver.HttpHandler>) clazz;
-                                    addHandler(path, handlerClass);
-                                    IO.println("[JettraServer] Page registrada automáticamente: " + path + " -> " + className);
-                                } else {
-                                    System.err.println("[JettraServer] Error: La clase " + className + " anotada con @Page no implementa HttpHandler.");
+                            java.util.function.Supplier<com.sun.net.httpserver.HttpHandler> lazyLoader = new java.util.function.Supplier<>() {
+                                private Class<?> cachedClass = null;
+                                @Override
+                                public com.sun.net.httpserver.HttpHandler get() {
+                                    try {
+                                        if (cachedClass == null) {
+                                            cachedClass = Class.forName(className, true, classLoader);
+                                            if (!com.sun.net.httpserver.HttpHandler.class.isAssignableFrom(cachedClass)) {
+                                                System.err.println("[JettraServer] Error: La clase " + className + " anotada con @Page no implementa HttpHandler.");
+                                                return null;
+                                            }
+                                        }
+                                        return (com.sun.net.httpserver.HttpHandler) cachedClass.getDeclaredConstructor().newInstance();
+                                    } catch (Exception e) {
+                                        System.err.println("[JettraServer] Advertencia: No se pudo instanciar la clase de página: " + className);
+                                        return null;
+                                    }
                                 }
-                            } catch (ClassNotFoundException e) {
-                                System.err.println("[JettraServer] Advertencia: No se pudo cargar la clase de página: " + className);
-                            }
+                            };
+                            addHandler(path, lazyLoader);
+                            IO.println("[JettraServer] Page registrada automáticamente (Lazy): " + path + " -> " + className);
                         }
                     }
                 }
