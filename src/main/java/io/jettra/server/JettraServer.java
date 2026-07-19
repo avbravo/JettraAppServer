@@ -20,6 +20,7 @@ public class JettraServer {
     private int customPort = -1;
     private io.jettra.server.core.AutocloneManager autocloneManager;
     private int cloneCount = 0;
+    private Boolean serverConsoleShowRegisterPage;
 
     public void setPort(int port) {
         this.customPort = port;
@@ -31,22 +32,29 @@ public class JettraServer {
 
     /**
      * Registra un manejador HTTP personalizado antes de iniciar el servidor.
+     *
      * @param path la ruta, ej. "/login"
      * @param handler el manejador
      */
     public void addHandler(String path, HttpHandler handler) {
         handlerRegistry.put(path, handler);
-        if (server != null) registerInServer(path, handler);
+        if (server != null) {
+            registerInServer(path, handler);
+        }
     }
 
     public void addHandler(String path, java.util.function.Supplier<HttpHandler> supplier) {
         handlerRegistry.put(path, supplier);
-        if (server != null) registerInServer(path, supplier);
+        if (server != null) {
+            registerInServer(path, supplier);
+        }
     }
 
     public void addHandler(String path, Class<? extends HttpHandler> handlerClass) {
         handlerRegistry.put(path, handlerClass);
-        if (server != null) registerInServer(path, handlerClass);
+        if (server != null) {
+            registerInServer(path, handlerClass);
+        }
     }
 
     private void registerInServer(String path, Object handlerObj) {
@@ -63,15 +71,15 @@ public class JettraServer {
         if (contextPath == null || contextPath.isBlank() || contextPath.equals("/")) {
             return "/";
         }
-        
+
         if (!contextPath.startsWith("/")) {
             contextPath = "/" + contextPath;
         }
-        
+
         if (contextPath.endsWith("/") && contextPath.length() > 1) {
             contextPath = contextPath.substring(0, contextPath.length() - 1);
         }
-        
+
         return contextPath;
     }
 
@@ -80,11 +88,11 @@ public class JettraServer {
         if (contextPath.equals("/")) {
             return path.startsWith("/") ? path : "/" + path;
         }
-        
+
         if (!path.startsWith("/")) {
             path = "/" + path;
         }
-        
+
         return contextPath + path;
     }
 
@@ -115,7 +123,13 @@ public class JettraServer {
         io.jettra.server.test.ExampleRest example = new io.jettra.server.test.ExampleRest();
         io.jettra.server.config.ConfigInjector.inject(example);
         example.draw();
+        //Mostrar en consola las paginas cargadas
+        String serverConsoleShowRegisterPageTemp = io.jettra.server.config.JettraConfig.getProperty("server.consoleshowregisterpage");
 
+        serverConsoleShowRegisterPage = Boolean.FALSE;
+        if (serverConsoleShowRegisterPageTemp.equals("true")) {
+            serverConsoleShowRegisterPage = Boolean.TRUE;
+        }
         loadAnnotatedPages();
 
         try {
@@ -127,24 +141,23 @@ public class JettraServer {
                 port = (portValue != null && !portValue.isBlank()) ? Integer.parseInt(portValue) : 8080;
             }
             server = HttpServer.create(new InetSocketAddress(port), 0);
-            
+
             // Add custom handlers from registry
             for (Map.Entry<String, Object> entry : handlerRegistry.entrySet()) {
                 registerInServer(entry.getKey(), entry.getValue());
             }
-            
+
             // ... [root handled logic remains but uses wrapped] ...
-            
             // Default handler check
             String rootPath = resolvePath("/");
             boolean rootHandled = false;
-            for(String path : handlerRegistry.keySet()){
-                if(resolvePath(path).equals(rootPath)){
+            for (String path : handlerRegistry.keySet()) {
+                if (resolvePath(path).equals(rootPath)) {
                     rootHandled = true;
                     break;
                 }
             }
-            
+
             if (!rootHandled) {
                 HttpHandler defaultHandler = exchange -> {
                     String response = "JettraServer is running!";
@@ -152,10 +165,10 @@ public class JettraServer {
                     exchange.getResponseBody().write(response.getBytes());
                     exchange.getResponseBody().close();
                 };
-                
+
                 HttpHandler wrappedRoot = wrapHandler(defaultHandler);
                 server.createContext(rootPath, wrappedRoot);
-                
+
                 if (rootPath.endsWith("/") && rootPath.length() > 1) {
                     server.createContext(rootPath.substring(0, rootPath.length() - 1), wrappedRoot);
                 }
@@ -165,28 +178,28 @@ public class JettraServer {
                 HttpHandler redirectHandler = exchange -> {
                     String path = exchange.getRequestURI().getPath();
                     String redirectUrl = getContextPath() + (path.startsWith("/") ? path : "/" + path);
-                    
+
                     String query = exchange.getRequestURI().getQuery();
                     if (query != null && !query.isEmpty()) {
                         redirectUrl += "?" + query;
                     }
-                    
+
                     exchange.getResponseHeaders().set("Location", redirectUrl);
                     exchange.sendResponseHeaders(302, -1);
                     exchange.getResponseBody().close();
                 };
                 server.createContext("/", wrapHandler(redirectHandler));
             }
-            
+
             server.setExecutor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
             server.start();
             isRunning = true;
-            
+
             // Java 25 / Compact Header support detection
             String javaVersion = System.getProperty("java.version");
             boolean isJava25 = javaVersion != null && javaVersion.startsWith("25");
             String compactHeader = io.jettra.server.config.JettraConfig.getProperty("server.compactheader");
-            
+
             if (isJava25 || "true".equalsIgnoreCase(compactHeader)) {
                 IO.println("[JettraServer] Optimizando para Java 25: Uso de Compact Object Headers (JEP 450) detectado o configurado.");
             }
@@ -196,7 +209,7 @@ public class JettraServer {
             IO.println("JettraServer HTTP server started on port " + port);
             IO.println("JettraServer HTTP server contextpath = " + getContextPath());
             IO.println("Features initialized: REST, gRPC, JWT, Health, FaultTolerance, Session, DI, Security (XSS).");
-            
+
             // Iniciar AutocloneManager si estamos en el servidor principal (no en un clon)
             if (customPort <= 0) {
                 String thresholdVal = io.jettra.server.config.JettraConfig.getProperty("server.autoclone.threshold");
@@ -221,7 +234,7 @@ public class JettraServer {
             return;
         }
         IO.println("Stopping JettraServer...");
-        
+
         // Cierra todas las sesiones de todos los usuarios
         io.jettra.server.core.JettraContext.clearSessions();
         IO.println("[JettraServer] Todas las sesiones han sido cerradas.");
@@ -229,15 +242,19 @@ public class JettraServer {
         String expiredValue = io.jettra.server.config.JettraConfig.getProperty("server.session.expired");
         int expired = (expiredValue != null && !expiredValue.isBlank()) ? Integer.parseInt(expiredValue) : 0;
         server.stop(expired);
-        if (hotReloadThread != null) hotReloadThread.interrupt();
-        if (autocloneManager != null) autocloneManager.stop();
+        if (hotReloadThread != null) {
+            hotReloadThread.interrupt();
+        }
+        if (autocloneManager != null) {
+            autocloneManager.stop();
+        }
         isRunning = false;
         IO.println("JettraServer detenido exitosamente.");
     }
 
     /**
-     * Autoclonación Dinámica:
-     * Replica el servidor creando una nueva instancia en otro puerto para gestionar la carga.
+     * Autoclonación Dinámica: Replica el servidor creando una nueva instancia
+     * en otro puerto para gestionar la carga.
      */
     public void autoclone() {
         cloneCount++;
@@ -256,7 +273,7 @@ public class JettraServer {
         JettraServer replica = new JettraServer();
         replica.setPort(newPort);
         replica.setErrorPage(this.errorPage);
-        
+
         for (Map.Entry<String, Object> entry : this.handlerRegistry.entrySet()) {
             if (entry.getValue() instanceof HttpHandler) {
                 replica.addHandler(entry.getKey(), (HttpHandler) entry.getValue());
@@ -266,7 +283,7 @@ public class JettraServer {
                 replica.addHandler(entry.getKey(), (Class<? extends HttpHandler>) entry.getValue());
             }
         }
-        
+
         Thread replicaThread = new Thread(() -> replica.start());
         replicaThread.start();
     }
@@ -283,7 +300,7 @@ public class JettraServer {
                 exchange.getResponseHeaders().add("X-XSS-Protection", "1; mode=block");
                 exchange.getResponseHeaders().add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data: mediastream:; connect-src 'self' ws: wss:;");
                 exchange.getResponseHeaders().add("Referrer-Policy", "strict-origin-when-cross-origin");
-                
+
                 String path = exchange.getRequestURI().getPath();
                 if (!path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains(".")) {
                     Object credential = JettraContext.getCurrent().get(JettraContext.Scope.SESSION, "credentialFlux");
@@ -294,7 +311,7 @@ public class JettraServer {
                         return;
                     }
                 }
-                
+
                 HttpHandler instance = null;
                 if (original instanceof HttpHandler) {
                     instance = (HttpHandler) original;
@@ -307,7 +324,7 @@ public class JettraServer {
                         e.printStackTrace();
                     }
                 }
-                
+
                 if (instance != null) {
                     try {
                         io.jettra.server.core.DependencyInjector.inject(instance);
@@ -328,9 +345,9 @@ public class JettraServer {
     private void handleErrorRedirect(HttpExchange exchange, String title, String detail, String origin) throws java.io.IOException {
         if (this.errorPage != null && !this.errorPage.isEmpty()) {
             try {
-                String redirectUrl = this.errorPage + "?title=" + java.net.URLEncoder.encode(title, "UTF-8") +
-                                     "&detail=" + java.net.URLEncoder.encode(detail, "UTF-8") +
-                                     "&origin=" + java.net.URLEncoder.encode(origin, "UTF-8");
+                String redirectUrl = this.errorPage + "?title=" + java.net.URLEncoder.encode(title, "UTF-8")
+                        + "&detail=" + java.net.URLEncoder.encode(detail, "UTF-8")
+                        + "&origin=" + java.net.URLEncoder.encode(origin, "UTF-8");
                 exchange.getResponseHeaders().set("Location", resolvePath(redirectUrl));
                 exchange.sendResponseHeaders(302, -1);
                 exchange.getResponseBody().close();
@@ -339,7 +356,7 @@ public class JettraServer {
                 ex.printStackTrace();
             }
         }
-        
+
         String req = title + ": " + detail + " at " + origin;
         exchange.sendResponseHeaders(404, req.length());
         exchange.getResponseBody().write(req.getBytes());
@@ -351,7 +368,9 @@ public class JettraServer {
         if (cookies != null) {
             for (String cookie : cookies.split(";")) {
                 cookie = cookie.trim();
-                if (cookie.startsWith("jsessionid=")) return cookie.substring("jsessionid=".length());
+                if (cookie.startsWith("jsessionid=")) {
+                    return cookie.substring("jsessionid=".length());
+                }
             }
         }
         String newId = java.util.UUID.randomUUID().toString();
@@ -361,14 +380,18 @@ public class JettraServer {
 
     private void startHotReloadWatcher() {
         String hotreload = io.jettra.server.config.JettraConfig.getProperty("server.hotreload");
-        if (!"true".equalsIgnoreCase(hotreload)) return;
+        if (!"true".equalsIgnoreCase(hotreload)) {
+            return;
+        }
 
         hotReloadThread = new Thread(() -> {
             try {
                 WatchService watcher = FileSystems.getDefault().newWatchService();
                 Path path = Paths.get("target/classes");
-                if (!Files.exists(path)) return;
-                
+                if (!Files.exists(path)) {
+                    return;
+                }
+
                 path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
                 IO.println("[HotReload] Watching for changes in target/classes...");
 
@@ -378,7 +401,7 @@ public class JettraServer {
                         for (WatchEvent<?> event : key.pollEvents()) {
                             IO.println("[HotReload] Change detected: " + event.context());
                             restore(); // Full restart for now
-                            return; 
+                            return;
                         }
                         key.reset();
                     }
@@ -402,6 +425,7 @@ public class JettraServer {
 
     /**
      * Retorna el estado actual del servidor.
+     *
      * @return STATUS (RUNNING o STOPPED)
      */
     public String status() {
@@ -410,6 +434,7 @@ public class JettraServer {
 
     /**
      * Check de liveness para saber si el servidor está operativo.
+     *
      * @return true si el servidor está levantado y aceptando peticiones.
      */
     public boolean live() {
@@ -423,9 +448,8 @@ public class JettraServer {
 
             while (resources.hasMoreElements()) {
                 java.net.URL url = resources.nextElement();
-                try (java.io.InputStream is = url.openStream();
-                     java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8))) {
-                     
+                try (java.io.InputStream is = url.openStream(); java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8))) {
+
                     String line;
                     while ((line = reader.readLine()) != null) {
                         line = line.trim();
@@ -438,6 +462,7 @@ public class JettraServer {
                             String path = line.substring(separatorIndex + 1);
                             java.util.function.Supplier<com.sun.net.httpserver.HttpHandler> lazyLoader = new java.util.function.Supplier<>() {
                                 private Class<?> cachedClass = null;
+
                                 @Override
                                 public com.sun.net.httpserver.HttpHandler get() {
                                     try {
@@ -456,7 +481,10 @@ public class JettraServer {
                                 }
                             };
                             addHandler(path, lazyLoader);
-                            IO.println("[JettraServer] Page registrada automáticamente (Lazy): " + path + " -> " + className);
+                            if (serverConsoleShowRegisterPage) {
+                                IO.println("[JettraServer] Page registrada automáticamente (Lazy): " + path + " -> " + className);
+                            }
+
                         }
                     }
                 }
