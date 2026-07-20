@@ -111,12 +111,12 @@ public class JettraServer {
         // Initialize JettraSecurityDB if backend server is true
         String typeBackend = io.jettra.server.config.JettraConfig.getProperty("server.typebackend");
         if ("true".equalsIgnoreCase(typeBackend)) {
-            IO.println("[JettraServer] server.typebackend=true detected. Initializing JettraSecurityDB...");
-            io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty();
+            IO.println("[JettraServer] server.typebackend=true detected. Initializing JettraSecurityDB in background...");
+            Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
         }
 
-        // Add native admin console for security database
-        this.addHandler("/securitydb/admin", new io.jettra.server.autentification.AdminConsoleHandler());
+        // Add native admin console for security database (Lazy loaded)
+        this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
 
         // Inicializamos componentes abstractos/ejemplo si los hay
         IO.println("Initializing ExampleRest and ConfigInjector...");
