@@ -142,6 +142,10 @@ public class JettraServer {
             }
             server = HttpServer.create(new InetSocketAddress(port), 0);
 
+            // Add static resource handler
+            HttpHandler staticHandler = wrapHandler(new io.jettra.server.core.StaticResourceHandler("/static"));
+            server.createContext(resolvePath("/static"), staticHandler);
+
             // Add custom handlers from registry
             for (Map.Entry<String, Object> entry : handlerRegistry.entrySet()) {
                 registerInServer(entry.getKey(), entry.getValue());
