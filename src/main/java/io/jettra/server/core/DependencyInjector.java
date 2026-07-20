@@ -38,15 +38,27 @@ public class DependencyInjector {
             } else if (field.isAnnotationPresent(io.jettra.core.inject.annotation.InjectProperties.class)) {
                 io.jettra.core.inject.annotation.InjectProperties propsMeta = field.getAnnotation(io.jettra.core.inject.annotation.InjectProperties.class);
                 String name = propsMeta.name();
-                // Attempt to load the properties file
+                String langSuffix = "";
+                JettraContext context = JettraContext.getCurrent();
+                if (context != null) {
+                    Object sessionLang = context.get(JettraContext.Scope.SESSION, "jettra_lang");
+                    if (sessionLang != null && sessionLang.toString().length() > 0) {
+                        langSuffix = "_" + sessionLang.toString();
+                    }
+                }
+                
                 java.util.Properties properties = new java.util.Properties();
-                try (java.io.InputStream is = clazz.getClassLoader().getResourceAsStream(name + ".properties")) {
+                String targetProp = name + langSuffix + ".properties";
+                try (java.io.InputStream is = clazz.getClassLoader().getResourceAsStream(targetProp)) {
                     if (is != null) {
                         properties.load(is);
                     } else {
-                        // try fallback with _es or similar
-                        java.io.InputStream is2 = clazz.getClassLoader().getResourceAsStream(name + "_es.properties");
-                        if (is2 != null) properties.load(is2);
+                        java.io.InputStream isDef = clazz.getClassLoader().getResourceAsStream(name + ".properties");
+                        if (isDef != null) properties.load(isDef);
+                        else {
+                            java.io.InputStream is2 = clazz.getClassLoader().getResourceAsStream(name + "_es.properties");
+                            if (is2 != null) properties.load(is2);
+                        }
                     }
                     
                     field.setAccessible(true);

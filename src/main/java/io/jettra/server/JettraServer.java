@@ -297,6 +297,18 @@ public class JettraServer {
             String sessionId = getOrCreateSessionId(exchange);
             JettraContext context = new JettraContext(sessionId);
             JettraContext.setCurrent(context);
+            
+            String cookieHeader = exchange.getRequestHeaders().getFirst("Cookie");
+            String lang = "en"; // Default fallback
+            if (cookieHeader != null) {
+                for (String c : cookieHeader.split(";")) {
+                    c = c.trim();
+                    if (c.startsWith("jettra_lang=")) {
+                        lang = c.substring(12);
+                    }
+                }
+            }
+            context.set(JettraContext.Scope.SESSION, "jettra_lang", lang);
             try {
                 // Add enhanced security headers (XSS Protection)
                 exchange.getResponseHeaders().add("X-Content-Type-Options", "nosniff");
