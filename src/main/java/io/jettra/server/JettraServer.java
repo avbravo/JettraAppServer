@@ -334,8 +334,14 @@ public class JettraServer {
                         io.jettra.server.core.DependencyInjector.inject(instance);
                         instance.handle(exchange);
                     } catch (Exception e) {
-                        e.printStackTrace();
-                        handleErrorRedirect(exchange, "500 Internal Server Error", e.getClass().getSimpleName() + " - " + e.getMessage(), "Handler: " + original.getClass().getSimpleName());
+                        if (exchange.getResponseCode() == -1) {
+                            e.printStackTrace();
+                            handleErrorRedirect(exchange, "500 Internal Server Error", e.getClass().getSimpleName() + " - " + e.getMessage(), "Handler: " + original.getClass().getSimpleName());
+                        } else {
+                            // Headers already sent (e.g., Broken pipe during body write)
+                            // We cannot send a 500 error redirect now. Just log it quietly.
+                            System.err.println("[JettraServer] Client disconnected or IO Error after headers sent: " + e.getMessage());
+                        }
                     }
                 } else {
                     handleErrorRedirect(exchange, "404 Not Found", "The requested handler was not found", exchange.getRequestURI().toString());

@@ -18,6 +18,11 @@ public class StaticResourceHandler implements HttpHandler {
     public void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
         
+        String contextPath = io.jettra.server.JettraServer.getContextPath();
+        if (!contextPath.equals("/") && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+        
         // Serve from classpath (e.g. /static/...)
         // Remove leading slash for classpath lookup if it starts with /
         String resourcePath = path.startsWith("/") ? path.substring(1) : path;
