@@ -9,7 +9,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public class JettraContext {
 
     public enum Scope {
-        REQUEST, SESSION, APPLICATION, VIEW, WINDOW, CLIENT, CACHE
+        REQUEST, SESSION, APPLICATION, VIEW, WINDOW, CLIENT, CACHE;
+        
+        public String getRole() {
+            if (this == SESSION) {
+                JettraContext ctx = JettraContext.getCurrent();
+                if (ctx != null) {
+                    Object roleObj = ctx.get(SESSION, "role");
+                    return roleObj != null ? roleObj.toString() : "";
+                }
+            }
+            return "";
+        }
     }
 
     private static final ThreadLocal<JettraContext> currentContext = new ThreadLocal<>();
