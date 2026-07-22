@@ -108,12 +108,9 @@ public class JettraServer {
         IO.println("Starting JettraServer...");
         IO.println("Java version: " + System.getProperty("java.version"));
 
-        // Initialize JettraSecurityDB if backend server is true
-        String typeBackend = io.jettra.server.config.JettraConfig.getProperty("server.typebackend");
-        if ("true".equalsIgnoreCase(typeBackend)) {
-            IO.println("[JettraServer] server.typebackend=true detected. Initializing JettraSecurityDB in background...");
-            Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
-        }
+        // Verify and initialize JettraSecurityDB records (JUsers, JRole, JAccreditation)
+        IO.println("[JettraServer] Initializing and verifying JettraSecurityDB records (JUsers, JRole, JAccreditation)...");
+        Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
 
         // Add native admin console for security database (Lazy loaded)
         this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
@@ -480,8 +477,8 @@ public class JettraServer {
                         }
                         int separatorIndex = line.indexOf('=');
                         if (separatorIndex > 0) {
-                            String className = line.substring(0, separatorIndex);
-                            String path = line.substring(separatorIndex + 1);
+                            String className = line.substring(0, separatorIndex).trim();
+                            String path = line.substring(separatorIndex + 1).trim();
                             java.util.function.Supplier<com.sun.net.httpserver.HttpHandler> lazyLoader = new java.util.function.Supplier<>() {
                                 private Class<?> cachedClass = null;
 
@@ -489,15 +486,19 @@ public class JettraServer {
                                 public com.sun.net.httpserver.HttpHandler get() {
                                     try {
                                         if (cachedClass == null) {
-                                            cachedClass = Class.forName(className, true, classLoader);
+                                            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+                                            if (cl == null) cl = classLoader;
+                                            if (cl == null) cl = JettraServer.class.getClassLoader();
+                                            cachedClass = Class.forName(className, true, cl);
                                             if (!com.sun.net.httpserver.HttpHandler.class.isAssignableFrom(cachedClass)) {
                                                 System.err.println("[JettraServer] Error: La clase " + className + " anotada con @Page no implementa HttpHandler.");
                                                 return null;
                                             }
                                         }
                                         return (com.sun.net.httpserver.HttpHandler) cachedClass.getDeclaredConstructor().newInstance();
-                                    } catch (Exception e) {
-                                        System.err.println("[JettraServer] Advertencia: No se pudo instanciar la clase de página: " + className);
+                                    } catch (Throwable e) {
+                                        System.err.println("[JettraServer] Error al instanciar la clase de página: " + className + " - " + e.getMessage());
+                                        e.printStackTrace();
                                         return null;
                                     }
                                 }

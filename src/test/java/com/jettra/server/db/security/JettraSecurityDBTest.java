@@ -75,6 +75,7 @@ public class JettraSecurityDBTest {
         io.jettra.server.autentification.repository.JRoleRepository roleRepo = new JRoleRepositoryImpl();
         JUserRepository userRepo = new JUserRepositoryImpl();
         JCredentialRepository credRepo = new JCredentialRepositoryImpl();
+        io.jettra.server.autentification.repository.JAccreditationRepository accRepo = new io.jettra.server.autentification.repository.JAccreditationRepositoryImpl();
 
         // 1. Verify default roles
         List<JRole> roles = roleRepo.findAll();
@@ -84,6 +85,10 @@ public class JettraSecurityDBTest {
         boolean hasManagerRole = roles.stream().anyMatch(r -> r.name().equals("MANAGER"));
         boolean hasDemoRole = roles.stream().anyMatch(r -> r.name().equals("DEMO"));
         assertCondition(hasAdminRole && hasManagerRole && hasDemoRole, "Default roles names do not match.");
+
+        // Verify default accreditations
+        List<io.jettra.server.autentification.entity.JAccreditation> accs = accRepo.findAll();
+        assertCondition(accs.size() == 3, "Should have 3 default accreditations, found: " + accs.size());
 
         // 2. Verify admin user
         List<JUser> users = userRepo.findAll();

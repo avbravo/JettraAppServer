@@ -195,6 +195,15 @@ public class JettraQueryParser {
             java.lang.reflect.Method method = obj.getClass().getMethod(field);
             return method.invoke(obj);
         } catch (Exception e) {
+            for (java.lang.reflect.Method m : obj.getClass().getMethods()) {
+                if (m.getName().equalsIgnoreCase(field) && m.getParameterCount() == 0) {
+                    try {
+                        return m.invoke(obj);
+                    } catch (Exception ex) {
+                        return null;
+                    }
+                }
+            }
             return null;
         }
     }
