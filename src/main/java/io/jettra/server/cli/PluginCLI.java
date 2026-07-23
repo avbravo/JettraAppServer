@@ -154,24 +154,17 @@ public class PluginCLI {
             Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_en.properties"), msgEn.getBytes(StandardCharsets.UTF_8));
             Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_es.properties"), msgEs.getBytes(StandardCharsets.UTF_8));
 
-            // Migration: Copy local src/main/java excluding specific files
+            // Migration: Copy local src/main/java
             if (Files.exists(localSrc)) {
                 System.out.println("Migrating classes from current project...");
-                Set<String> excludedFiles = new HashSet<>(Arrays.asList(
-                    "App.java", "DashboardPage.java", "ForgotPasswordPage.java", "LoginPage.java", "TemplatePage.java"
-                ));
-                
                 Files.walkFileTree(localSrc, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
                         if (file.toString().endsWith(".java")) {
-                            String fileName = file.getFileName().toString();
-                            if (!excludedFiles.contains(fileName)) {
-                                Path relative = localSrc.relativize(file);
-                                Path dest = targetDir.resolve("src/main/java").resolve(relative);
-                                Files.createDirectories(dest.getParent());
-                                Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
-                            }
+                            Path relative = localSrc.relativize(file);
+                            Path dest = targetDir.resolve("src/main/java").resolve(relative);
+                            Files.createDirectories(dest.getParent());
+                            Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -342,6 +335,20 @@ public class PluginCLI {
                "                        </configuration>\n" +
                "                    </execution>\n" +
                "                </executions>\n" +
+               "            </plugin>\n" +
+               "            <plugin>\n" +
+               "                <groupId>org.apache.maven.plugins</groupId>\n" +
+               "                <artifactId>maven-jar-plugin</artifactId>\n" +
+               "                <version>3.3.0</version>\n" +
+               "                <configuration>\n" +
+               "                    <excludes>\n" +
+               "                        <exclude>**/App.class</exclude>\n" +
+               "                        <exclude>**/DashboardPage.class</exclude>\n" +
+               "                        <exclude>**/ForgotPasswordPage.class</exclude>\n" +
+               "                        <exclude>**/LoginPage.class</exclude>\n" +
+               "                        <exclude>**/TemplatePage.class</exclude>\n" +
+               "                    </excludes>\n" +
+               "                </configuration>\n" +
                "            </plugin>\n" +
                "        </plugins>\n" +
                "    </build>\n" +
