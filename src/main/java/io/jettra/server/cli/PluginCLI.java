@@ -1,0 +1,485 @@
+package io.jettra.server.cli;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class PluginCLI {
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Usage: mvn -jettra <command> <plugin-name> [options]");
+            return;
+        }
+
+        List<String> argList = new ArrayList<>(Arrays.asList(args));
+        argList.removeIf(a -> a.equals("-jettra"));
+        
+        if (argList.isEmpty()) return;
+
+        String command = argList.get(0);
+        String pluginName = null;
+        String pathStr = null;
+        String excludePlugins = null;
+
+        for (int i = 0; i < argList.size(); i++) {
+            String arg = argList.get(i);
+            if ("-name".equals(arg) && i + 1 < argList.size()) {
+                pluginName = argList.get(i + 1);
+            } else if ("-path".equals(arg) && i + 1 < argList.size()) {
+                pathStr = argList.get(i + 1);
+            } else if ("exclude-plugin".equals(arg) && i + 1 < argList.size()) {
+                excludePlugins = argList.get(i + 1);
+            }
+        }
+
+        // Backwards compatibility if flags are not used (e.g. command pluginName)
+        if (pluginName == null && argList.size() > 1 && !argList.get(1).startsWith("-") && !"exclude-plugin".equals(argList.get(1))) {
+            pluginName = argList.get(1);
+        }
+        
+        if (pathStr == null) {
+            pathStr = ".";
+        }
+
+        if (pluginName == null) {
+            System.out.println("Plugin name is required.");
+            return;
+        }
+
+        switch (command) {
+            case "generate-plugin":
+                generatePlugin(pathStr, pluginName, excludePlugins);
+                break;
+            case "install-plugin":
+                installPlugin(pluginName);
+                break;
+            case "remove-plugin":
+                removePlugin(pluginName);
+                break;
+            default:
+                System.out.println("Unknown command: " + command);
+        }
+    }
+
+    private static void generatePlugin(String pathStr, String pluginName, String excludePlugins) {
+        Path baseDir = Paths.get(pathStr);
+        Path targetDir = baseDir.resolve(pluginName);
+        System.out.println("Generating autonomous plugin: " + targetDir.toString());
+        if (excludePlugins != null) {
+            System.out.println("Excluding plugins: " + excludePlugins);
+        }
+
+        try {
+            if (Files.exists(targetDir)) {
+                System.err.println("Target directory " + targetDir.toString() + " already exists!");
+                return;
+            }
+            
+            // Map to store extracted versions
+            Map<String, String> versions = new HashMap<>();
+            
+            // Try to extract versions from local pom.xml
+            Path localPom = Paths.get("pom.xml");
+            if (Files.exists(localPom)) {
+                String pomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
+                extractVersion(pomContent, "jettra.annotation.version", versions);
+                extractVersion(pomContent, "jettra.jwt.version", versions);
+                extractVersion(pomContent, "jettra.gprc.version", versions);
+                extractVersion(pomContent, "jettra.rules.version", versions);
+                extractVersion(pomContent, "jettra.appserver.version", versions);
+                extractVersion(pomContent, "jettra.report.version", versions);
+                extractVersion(pomContent, "jettra.rest.version", versions);
+                extractVersion(pomContent, "jettra.json.version", versions);
+                extractVersion(pomContent, "jettra.test.version", versions);
+                extractVersion(pomContent, "jettra.flux.version", versions);
+            } else {
+                System.out.println("Warning: pom.xml not found in current directory. Using default 1.0.0-SNAPSHOT for Jettra dependencies.");
+            }
+
+            Files.createDirectories(targetDir);
+            String pluginNameLower = pluginName.toLowerCase();
+            String packagePath = "io/jettraflux/" + pluginNameLower;
+            
+            Files.createDirectories(targetDir.resolve("src/main/java/" + packagePath));
+            Files.createDirectories(targetDir.resolve("src/main/resources"));
+            
+            // 1. Generate POM
+            String pom = generatePomTemplate(pluginName, pluginNameLower, versions);
+            Files.write(targetDir.resolve("pom.xml"), pom.getBytes(StandardCharsets.UTF_8));
+            
+            // 2. Generate plugin-descriptor.md
+            StringBuilder descriptor = new StringBuilder();
+            descriptor.append("# Plugin Descriptor for ").append(pluginName).append("\n\n");
+            descriptor.append("## Restrictions & Menus\n");
+            descriptor.append("Menu definitions (WidgetLet) and layout restrictions should be defined here.\n\n");
+            descriptor.append("```java\n");
+            
+            // Try to extract menu from TemplatePage.java
+            boolean extractedMenu = false;
+            Path localSrc = Paths.get("src/main/java");
+            if (Files.exists(localSrc)) {
+                try (java.util.stream.Stream<Path> stream = Files.walk(localSrc)) {
+                    Optional<Path> templatePageOpt = stream.filter(p -> p.getFileName().toString().equals("TemplatePage.java")).findFirst();
+                    if (templatePageOpt.isPresent()) {
+                        List<String> lines = Files.readAllLines(templatePageOpt.get(), StandardCharsets.UTF_8);
+                        boolean inMenu = false;
+                        for (String line : lines) {
+                            if (line.contains("WidgetLet") && !line.contains("import ")) {
+                                inMenu = true;
+                            }
+                            if (inMenu) {
+                                descriptor.append(line).append("\n");
+                            }
+                            if (inMenu && line.contains("Widget menu = Left.of")) {
+                                break; // Stop extraction once we hit the menu creation
+                            }
+                        }
+                        extractedMenu = true;
+                    }
+                }
+            }
+            if (!extractedMenu) {
+                descriptor.append("// Define WidgetLets here.\n");
+            }
+            descriptor.append("```\n");
+            Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
+            
+            // 3. Generate messages files
+            String msgEn = "greeting=Hello from " + pluginName + "\n";
+            String msgEs = "greeting=Hola desde " + pluginName + "\n";
+            Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_en.properties"), msgEn.getBytes(StandardCharsets.UTF_8));
+            Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_es.properties"), msgEs.getBytes(StandardCharsets.UTF_8));
+
+            // Migration: Copy local src/main/java excluding specific files
+            if (Files.exists(localSrc)) {
+                System.out.println("Migrating classes from current project...");
+                Set<String> excludedFiles = new HashSet<>(Arrays.asList(
+                    "App.java", "DashboardPage.java", "ForgotPasswordPage.java", "LoginPage.java", "TemplatePage.java"
+                ));
+                
+                Files.walkFileTree(localSrc, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                        if (file.toString().endsWith(".java")) {
+                            String fileName = file.getFileName().toString();
+                            if (!excludedFiles.contains(fileName)) {
+                                Path relative = localSrc.relativize(file);
+                                Path dest = targetDir.resolve("src/main/java").resolve(relative);
+                                Files.createDirectories(dest.getParent());
+                                Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
+
+            // Migration: Copy local src/main/resources excluding server properties
+            Path localRes = Paths.get("src/main/resources");
+            if (Files.exists(localRes)) {
+                System.out.println("Migrating resources from current project...");
+                Files.walkFileTree(localRes, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                        String fileName = file.getFileName().toString();
+                        if (!fileName.equals("jettra-config.properties") && !fileName.equals("jettra-rest.properties")) {
+                            Path relative = localRes.relativize(file);
+                            Path dest = targetDir.resolve("src/main/resources").resolve(relative);
+                            Files.createDirectories(dest.getParent());
+                            Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
+
+            // 4. Generate Java Page
+            String javaCode = "package io.jettraflux." + pluginNameLower + ";\n\n" +
+                              "import io.jettra.core.inject.annotation.InjectProperties;\n" +
+                              "import io.jettra.core.server.Page;\n" +
+                              "import io.jettra.flux.pages.FluxBaseHandler;\n" +
+                              "import io.jettra.flux.core.Widget;\n" +
+                              "import io.jettra.flux.widgets.Text;\n" +
+                              "import com.sun.net.httpserver.HttpExchange;\n" +
+                              "import java.util.Map;\n" +
+                              "import java.util.Properties;\n\n" +
+                              "@Page(path = \"/" + pluginNameLower + "\")\n" +
+                              "public class Main" + pluginName + "Page extends FluxBaseHandler {\n\n" +
+                              "    @InjectProperties(name = \"messages-" + pluginName + "\")\n" +
+                              "    private Properties msg;\n\n" +
+                              "    @Override\n" +
+                              "    protected Widget buildUI(HttpExchange exchange, Map<String, String> params, String currentTheme) {\n" +
+                              "        String text = msg != null ? msg.getProperty(\"greeting\", \"Welcome\") : \"Welcome\";\n" +
+                              "        return Text.of(text);\n" +
+                              "    }\n" +
+                              "}\n";
+            Files.write(targetDir.resolve("src/main/java/" + packagePath + "/Main" + pluginName + "Page.java"), javaCode.getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("Plugin " + pluginName + " generated successfully!");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void extractVersion(String pomContent, String tag, Map<String, String> versions) {
+        Pattern p = Pattern.compile("<" + tag + ">(.*?)</" + tag + ">");
+        Matcher m = p.matcher(pomContent);
+        if (m.find()) {
+            versions.put(tag, m.group(1));
+        } else {
+            versions.put(tag, "1.0.0-SNAPSHOT"); // default fallback
+        }
+    }
+
+    private static String generatePomTemplate(String pluginName, String pluginNameLower, Map<String, String> v) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+               "<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+               "         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd\">\n" +
+               "    <modelVersion>4.0.0</modelVersion>\n" +
+               "    <groupId>io.jettraflux." + pluginNameLower + "</groupId>\n" +
+               "    <artifactId>" + pluginName + "</artifactId>\n" +
+               "    <packaging>jar</packaging>\n" +
+               "    <version>1.0-SNAPSHOT</version>\n" +
+               "    <name>" + pluginName + "</name>\n\n" +
+               "    <properties>\n" +
+               "        <maven.compiler.source>25</maven.compiler.source>\n" +
+               "        <maven.compiler.target>25</maven.compiler.target>\n" +
+               "        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n" +
+               "        <skipTests>true</skipTests>\n" +
+               "        <jettra.annotation.version>" + v.get("jettra.annotation.version") + "</jettra.annotation.version>\n" +
+               "        <jettra.jwt.version>" + v.get("jettra.jwt.version") + "</jettra.jwt.version>\n" +
+               "        <jettra.gprc.version>" + v.get("jettra.gprc.version") + "</jettra.gprc.version>\n" +
+               "        <jettra.rules.version>" + v.get("jettra.rules.version") + "</jettra.rules.version>\n" +
+               "        <jettra.appserver.version>" + v.get("jettra.appserver.version") + "</jettra.appserver.version>\n" +
+               "        <jettra.report.version>" + v.get("jettra.report.version") + "</jettra.report.version>\n" +
+               "        <jettra.rest.version>" + v.get("jettra.rest.version") + "</jettra.rest.version>\n" +
+               "        <jettra.json.version>" + v.get("jettra.json.version") + "</jettra.json.version>\n" +
+               "        <jettra.test.version>" + v.get("jettra.test.version") + "</jettra.test.version>\n" +
+               "        <jettra.flux.version>" + v.get("jettra.flux.version") + "</jettra.flux.version>\n" +
+               "    </properties>\n\n" +
+               "    <dependencies>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraJSON</artifactId>\n" +
+               "            <version>${jettra.json.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraAppServer</artifactId>\n" +
+               "            <version>${jettra.appserver.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraReport</artifactId>\n" +
+               "            <version>${jettra.report.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraRules</artifactId>\n" +
+               "            <version>${jettra.rules.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraJWT</artifactId>\n" +
+               "            <version>${jettra.jwt.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraRest</artifactId>\n" +
+               "            <version>${jettra.rest.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraAnnotation</artifactId>\n" +
+               "            <version>${jettra.annotation.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraTest</artifactId>\n" +
+               "            <version>${jettra.test.version}</version>\n" +
+               "        </dependency>\n" +
+               "        <dependency>\n" +
+               "            <groupId>io.jettra</groupId>\n" +
+               "            <artifactId>JettraFlux</artifactId>\n" +
+               "            <version>${jettra.flux.version}</version>\n" +
+               "        </dependency>\n" +
+               "    </dependencies>\n" +
+               "    <build>\n" +
+               "        <plugins>\n" +
+               "            <plugin>\n" +
+               "                <groupId>org.apache.maven.plugins</groupId>\n" +
+               "                <artifactId>maven-compiler-plugin</artifactId>\n" +
+               "                <version>3.11.0</version>\n" +
+               "                <configuration>\n" +
+               "                    <source>${maven.compiler.source}</source>\n" +
+               "                    <target>${maven.compiler.target}</target>\n" +
+               "                    <annotationProcessorPaths>\n" +
+               "                        <path>\n" +
+               "                            <groupId>io.jettra</groupId>\n" +
+               "                            <artifactId>JettraAnnotation</artifactId>\n" +
+               "                            <version>${jettra.annotation.version}</version>\n" +
+               "                        </path>\n" +
+               "                    </annotationProcessorPaths>\n" +
+               "                </configuration>\n" +
+               "            </plugin>\n" +
+               "            <plugin>\n" +
+               "                <groupId>org.apache.maven.plugins</groupId>\n" +
+               "                <artifactId>maven-shade-plugin</artifactId>\n" +
+               "                <version>3.5.1</version>\n" +
+               "                <executions>\n" +
+               "                    <execution>\n" +
+               "                        <phase>package</phase>\n" +
+               "                        <goals>\n" +
+               "                            <goal>shade</goal>\n" +
+               "                        </goals>\n" +
+               "                        <configuration>\n" +
+               "                            <createDependencyReducedPom>false</createDependencyReducedPom>\n" +
+               "                        </configuration>\n" +
+               "                    </execution>\n" +
+               "                </executions>\n" +
+               "            </plugin>\n" +
+               "        </plugins>\n" +
+               "    </build>\n" +
+               "</project>\n";
+    }
+
+    private static void installPlugin(String pluginPathStr) {
+        Path pluginPath = Paths.get(pluginPathStr);
+        if (!Files.exists(pluginPath)) {
+            System.err.println("Plugin path does not exist: " + pluginPathStr);
+            return;
+        }
+
+        System.out.println("Installing plugin from: " + pluginPathStr);
+
+        // 1. Build the plugin
+        runCommand(new String[]{"mvn", "clean", "install"}, pluginPath);
+
+        // 2. Add dependency to local pom.xml
+        Path localPom = Paths.get("pom.xml");
+        Path pluginPom = pluginPath.resolve("pom.xml");
+        
+        if (Files.exists(localPom) && Files.exists(pluginPom)) {
+            try {
+                String pPomContent = new String(Files.readAllBytes(pluginPom), StandardCharsets.UTF_8);
+                String groupId = extractTag(pPomContent, "groupId");
+                String artifactId = extractTag(pPomContent, "artifactId");
+                String version = extractTag(pPomContent, "version");
+
+                if (groupId != null && artifactId != null && version != null) {
+                    String dependency = "        <dependency>\n" +
+                                        "            <groupId>" + groupId + "</groupId>\n" +
+                                        "            <artifactId>" + artifactId + "</artifactId>\n" +
+                                        "            <version>" + version + "</version>\n" +
+                                        "        </dependency>\n";
+                    
+                    String lPomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
+                    if (!lPomContent.contains("<artifactId>" + artifactId + "</artifactId>")) {
+                        lPomContent = lPomContent.replaceFirst("</dependencies>", dependency + "    </dependencies>");
+                        Files.write(localPom, lPomContent.getBytes(StandardCharsets.UTF_8));
+                        System.out.println("Added dependency to pom.xml.");
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error injecting dependency: " + e.getMessage());
+            }
+        }
+
+        // 3. Inject menu into TemplatePage.java
+        Path descriptor = pluginPath.resolve("plugin-descriptor.md");
+        if (Files.exists(descriptor)) {
+            try {
+                List<String> descLines = Files.readAllLines(descriptor, StandardCharsets.UTF_8);
+                boolean inCode = false;
+                List<String> codeLines = new ArrayList<>();
+                List<String> variables = new ArrayList<>();
+
+                for (String line : descLines) {
+                    if (line.startsWith("```java")) {
+                        inCode = true;
+                        continue;
+                    }
+                    if (inCode && line.startsWith("```")) {
+                        inCode = false;
+                        continue;
+                    }
+                    if (inCode) {
+                        codeLines.add(line);
+                        Matcher m = Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(line);
+                        if (m.find()) {
+                            variables.add(m.group(1));
+                        }
+                    }
+                }
+
+                if (!codeLines.isEmpty() && !variables.isEmpty()) {
+                    injectIntoTemplatePage(codeLines, variables);
+                }
+            } catch (Exception e) {
+                System.err.println("Error injecting into TemplatePage.java: " + e.getMessage());
+            }
+        }
+    }
+
+    private static String extractTag(String xml, String tag) {
+        Matcher m = Pattern.compile("<" + tag + ">(.*?)</" + tag + ">").matcher(xml);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    private static void injectIntoTemplatePage(List<String> codeLines, List<String> variables) throws IOException {
+        Path localSrc = Paths.get("src/main/java");
+        if (!Files.exists(localSrc)) return;
+
+        try (java.util.stream.Stream<Path> stream = Files.walk(localSrc)) {
+            Optional<Path> templatePageOpt = stream.filter(p -> p.getFileName().toString().equals("TemplatePage.java")).findFirst();
+            if (templatePageOpt.isPresent()) {
+                Path tp = templatePageOpt.get();
+                List<String> lines = Files.readAllLines(tp, StandardCharsets.UTF_8);
+                List<String> newLines = new ArrayList<>();
+                boolean injectedCode = false;
+                
+                for (String line : lines) {
+                    if (line.contains("Widget menu = Left.of(")) {
+                        if (!injectedCode) {
+                            newLines.addAll(codeLines);
+                            injectedCode = true;
+                        }
+                        String varsStr = String.join(", ", variables) + ", ";
+                        line = line.replace("Left.of(", "Left.of(" + varsStr);
+                    }
+                    newLines.add(line);
+                }
+                
+                if (injectedCode) {
+                    Files.write(tp, newLines, StandardCharsets.UTF_8);
+                    System.out.println("Injected menus into TemplatePage.java successfully.");
+                }
+            }
+        }
+    }
+
+    private static void removePlugin(String pluginName) {
+        System.out.println("Removing plugin: " + pluginName);
+        System.out.println("To remove from your project, delete the dependency in pom.xml");
+    }
+
+    private static void runCommand(String[] cmd, Path workDir) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.directory(workDir.toFile());
+            pb.inheritIO();
+            Process process = pb.start();
+            process.waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

@@ -112,6 +112,9 @@ public class JettraServer {
         IO.println("[JettraServer] Initializing and verifying JettraSecurityDB records (JUsers, JRole, JAccreditation)...");
         Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
 
+        // Auto-create mvn-jettra script if it doesn't exist
+        autoCreateMvnJettraScript();
+
         // Add native admin console for security database (Lazy loaded)
         this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
 
@@ -514,6 +517,30 @@ public class JettraServer {
             }
         } catch (Exception e) {
             System.err.println("[JettraServer] Error al cargar clases de página desde META-INF/jettra/page.classes: " + e.getMessage());
+        }
+    }
+
+    private void autoCreateMvnJettraScript() {
+        try {
+            Path scriptPath = Paths.get("mvn-jettra");
+            if (!Files.exists(scriptPath)) {
+                String scriptContent = "#!/bin/bash\n" +
+                                       "if [ \"$1\" = \"-jettra\" ]; then\n" +
+                                       "    shift\n" +
+                                       "fi\n\n" +
+                                       "# Execute the CLI tool using the local pom.xml\n" +
+                                       "mvn -q exec:java -Dexec.mainClass=\"io.jettra.server.cli.PluginCLI\" -Dexec.args=\"$*\"\n";
+                Files.write(scriptPath, scriptContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                
+                // Hacerlo ejecutable en sistemas Unix/Linux/Mac
+                String os = System.getProperty("os.name").toLowerCase();
+                if (os.contains("nix") || os.contains("nux") || os.contains("mac")) {
+                    Files.setPosixFilePermissions(scriptPath, java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"));
+                }
+                IO.println("[JettraServer] Auto-generado script 'mvn-jettra' en el directorio actual.");
+            }
+        } catch (Exception e) {
+            System.err.println("[JettraServer] Error al crear script mvn-jettra: " + e.getMessage());
         }
     }
 }
