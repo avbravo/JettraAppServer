@@ -26,6 +26,16 @@ mvn -q exec:java -Dexec.mainClass="io.jettra.server.cli.PluginCLI" -Dexec.args="
 ## Comandos y Sintaxis
 
 ### 1. Generar un Plugin
+ Generar un plugin a partir de un proyecto        
+Este se ejecuta desde consola como por ejemplo
+
+-path: Ruta del directorio donde se creara el plugin
+-name: Nombre del plugin 
+exclude-package: Excluye de la generación todos los documentos dentro de los paquetes especificados.
+exclude-class: Excluye clases especificas que no se desean migrar
+incluye-test: Indica que se pasarán también los test al plugin. Valores son yes|no
+
+
 
 Existen múltiples maneras de generar una estructura de proyecto para tu nuevo plugin. La recomendación es usar siempre los parámetros explícitos `-path` y `-name` para mayor seguridad.
 
@@ -33,15 +43,21 @@ Existen múltiples maneras de generar una estructura de proyecto para tu nuevo p
 ```bash
 ./mvn-jettra generate-plugin -path <directorio_destino> -name <NombrePlugin> [opciones]
 ```
-Ejemplo:
+Ejemplo con exclusión de paquetes, clases e inclusión de tests:
 ```bash
-./mvn-jettra generate-plugin -path /home/usuario/Proyectos -name ReportesPlugin exclude-plugin VentasPlugin,InventarioPlugin
+./mvn-jettra generate-plugin -path /home/avbravo/Descargas -name MiNuevoPlugin exclude-plugin plugin1,plugin2 exclude-package com.avbravo.general, com.avbravo.prueba exclude-class Clase1.java, Clase2.java incluye-test yes
 ```
+
+**Parámetros Opcionales de Generación:**
+- `exclude-plugin`: Excluye plugins específicos de la generación.
+- `exclude-package`: Excluye de la migración todos los documentos dentro de los paquetes especificados (ej: `com.avbravo.general, com.avbravo.prueba`).
+- `exclude-class`: Excluye clases específicas que no se desean migrar (ej: `Clase1.java, Clase2.java`).
+- `incluye-test`: Indica si se copiarán también las clases y recursos de pruebas (`src/test/java` y `src/test/resources`) al nuevo plugin. Valores permitidos: `yes` | `no`.
 
 **Sintaxis Simplificada (Directorio Actual):**
 Si omites `-path`, el generador construirá el plugin en el directorio donde te encuentres ubicado:
 ```bash
-./mvn-jettra generate-plugin ReportesPlugin exclude-plugin VentasPlugin,InventarioPlugin
+./mvn-jettra generate-plugin ReportesPlugin exclude-plugin VentasPlugin,InventarioPlugin exclude-package com.avbravo.general exclude-class Clase1.java incluye-test yes
 ```
 
 #### **¿Qué hace `generate-plugin` bajo el capó?**

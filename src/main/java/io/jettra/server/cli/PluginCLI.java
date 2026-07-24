@@ -24,20 +24,39 @@ public class PluginCLI {
         String pluginName = null;
         String pathStr = null;
         String excludePlugins = null;
+        List<String> excludePackages = new ArrayList<>();
+        List<String> excludeClasses = new ArrayList<>();
+        boolean includeTest = false;
 
         for (int i = 0; i < argList.size(); i++) {
             String arg = argList.get(i);
-            if ("-name".equals(arg) && i + 1 < argList.size()) {
-                pluginName = argList.get(i + 1);
-            } else if ("-path".equals(arg) && i + 1 < argList.size()) {
-                pathStr = argList.get(i + 1);
-            } else if ("exclude-plugin".equals(arg) && i + 1 < argList.size()) {
-                excludePlugins = argList.get(i + 1);
+            String nextArg = (i + 1 < argList.size()) ? argList.get(i + 1) : null;
+
+            if ("-name".equalsIgnoreCase(arg) || "name".equalsIgnoreCase(arg)) {
+                if (nextArg != null) pluginName = nextArg;
+            } else if ("-path".equalsIgnoreCase(arg) || "path".equalsIgnoreCase(arg)) {
+                if (nextArg != null) pathStr = nextArg;
+            } else if ("exclude-plugin".equalsIgnoreCase(arg) || "-exclude-plugin".equalsIgnoreCase(arg)) {
+                if (nextArg != null) excludePlugins = nextArg;
+            } else if ("exclude-package".equalsIgnoreCase(arg) || "-exclude-package".equalsIgnoreCase(arg)) {
+                List<String> tokens = collectOptionTokens(argList, i + 1);
+                excludePackages.addAll(parseCommaOrSpaceSeparatedList(tokens));
+            } else if ("exclude-class".equalsIgnoreCase(arg) || "-exclude-class".equalsIgnoreCase(arg)) {
+                List<String> tokens = collectOptionTokens(argList, i + 1);
+                excludeClasses.addAll(parseCommaOrSpaceSeparatedList(tokens));
+            } else if ("incluye-test".equalsIgnoreCase(arg) || "-incluye-test".equalsIgnoreCase(arg) ||
+                       "include-test".equalsIgnoreCase(arg) || "-include-test".equalsIgnoreCase(arg)) {
+                if (nextArg != null && !isKnownOptionKey(nextArg)) {
+                    String val = nextArg.trim().toLowerCase();
+                    includeTest = val.equals("yes") || val.equals("true") || val.equals("si") || val.equals("y") || val.equals("1");
+                } else {
+                    includeTest = true;
+                }
             }
         }
 
         // Backwards compatibility if flags are not used (e.g. command pluginName)
-        if (pluginName == null && argList.size() > 1 && !argList.get(1).startsWith("-") && !"exclude-plugin".equals(argList.get(1))) {
+        if (pluginName == null && argList.size() > 1 && !argList.get(1).startsWith("-") && !"exclude-plugin".equalsIgnoreCase(argList.get(1))) {
             pluginName = argList.get(1);
         }
         
@@ -52,7 +71,7 @@ public class PluginCLI {
 
         switch (command) {
             case "generate-plugin":
-                generatePlugin(pathStr, pluginName, excludePlugins);
+                generatePlugin(pathStr, pluginName, excludePlugins, excludePackages, excludeClasses, includeTest);
                 break;
             case "install-plugin":
                 installPlugin(pluginName);
@@ -65,13 +84,21 @@ public class PluginCLI {
         }
     }
 
-    private static void generatePlugin(String pathStr, String pluginName, String excludePlugins) {
+    private static void generatePlugin(String pathStr, String pluginName, String excludePlugins,
+                                       List<String> excludePackages, List<String> excludeClasses, boolean includeTest) {
         Path baseDir = Paths.get(pathStr);
         Path targetDir = baseDir.resolve(pluginName);
         System.out.println("Generating autonomous plugin: " + targetDir.toString());
         if (excludePlugins != null) {
             System.out.println("Excluding plugins: " + excludePlugins);
         }
+        if (!excludePackages.isEmpty()) {
+            System.out.println("Excluding packages: " + String.join(", ", excludePackages));
+        }
+        if (!excludeClasses.isEmpty()) {
+            System.out.println("Excluding classes: " + String.join(", ", excludeClasses));
+        }
+        System.out.println("Includes test: " + (includeTest ? "yes" : "no"));
 
         try {
             if (Files.exists(targetDir)) {
@@ -162,9 +189,13 @@ public class PluginCLI {
                     public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
                         if (file.toString().endsWith(".java")) {
                             Path relative = localSrc.relativize(file);
-                            Path dest = targetDir.resolve("src/main/java").resolve(relative);
-                            Files.createDirectories(dest.getParent());
-                            Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                            if (!isJavaFileExcluded(relative, file, excludePackages, excludeClasses)) {
+                                Path dest = targetDir.resolve("src/main/java").resolve(relative);
+                                Files.createDirectories(dest.getParent());
+                                Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                            } else {
+                                System.out.println("  [Excluded class] " + relative);
+                            }
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -188,6 +219,45 @@ public class PluginCLI {
                         return FileVisitResult.CONTINUE;
                     }
                 });
+            }
+
+            // Migration: Copy tests if includeTest is true
+            if (includeTest) {
+                Path localTestSrc = Paths.get("src/test/java");
+                if (Files.exists(localTestSrc)) {
+                    System.out.println("Migrating test classes from current project...");
+                    Files.walkFileTree(localTestSrc, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                            if (file.toString().endsWith(".java")) {
+                                Path relative = localTestSrc.relativize(file);
+                                if (!isJavaFileExcluded(relative, file, excludePackages, excludeClasses)) {
+                                    Path dest = targetDir.resolve("src/test/java").resolve(relative);
+                                    Files.createDirectories(dest.getParent());
+                                    Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                                } else {
+                                    System.out.println("  [Excluded test class] " + relative);
+                                }
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                }
+
+                Path localTestRes = Paths.get("src/test/resources");
+                if (Files.exists(localTestRes)) {
+                    System.out.println("Migrating test resources from current project...");
+                    Files.walkFileTree(localTestRes, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                            Path relative = localTestRes.relativize(file);
+                            Path dest = targetDir.resolve("src/test/resources").resolve(relative);
+                            Files.createDirectories(dest.getParent());
+                            Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                }
             }
 
             // 4. Generate Java Page
@@ -488,5 +558,76 @@ public class PluginCLI {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static List<String> collectOptionTokens(List<String> argList, int startIndex) {
+        List<String> tokens = new ArrayList<>();
+        for (int i = startIndex; i < argList.size(); i++) {
+            String token = argList.get(i);
+            if (isKnownOptionKey(token)) {
+                break;
+            }
+            tokens.add(token);
+        }
+        return tokens;
+    }
+
+    private static boolean isKnownOptionKey(String token) {
+        if (token == null) return false;
+        String t = token.toLowerCase();
+        return t.equals("-name") || t.equals("name") ||
+               t.equals("-path") || t.equals("path") ||
+               t.equals("exclude-plugin") || t.equals("-exclude-plugin") ||
+               t.equals("exclude-package") || t.equals("-exclude-package") ||
+               t.equals("exclude-class") || t.equals("-exclude-class") ||
+               t.equals("incluye-test") || t.equals("-incluye-test") ||
+               t.equals("include-test") || t.equals("-include-test");
+    }
+
+    private static List<String> parseCommaOrSpaceSeparatedList(List<String> tokens) {
+        List<String> result = new ArrayList<>();
+        String joined = String.join(" ", tokens);
+        String[] parts = joined.split("[,\\s]+");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private static boolean isJavaFileExcluded(Path relativePath, Path file, List<String> excludePackages, List<String> excludeClasses) {
+        Path parent = relativePath.getParent();
+        String pkg = (parent == null) ? "" : parent.toString().replace('/', '.').replace('\\', '.');
+
+        for (String exPkg : excludePackages) {
+            String cleanPkg = exPkg.replace('/', '.').replace('\\', '.').replaceAll("^\\.+|\\.+$", "");
+            if (!cleanPkg.isEmpty()) {
+                if (pkg.equalsIgnoreCase(cleanPkg) || pkg.toLowerCase().startsWith(cleanPkg.toLowerCase() + ".")) {
+                    return true;
+                }
+            }
+        }
+
+        String fileName = file.getFileName().toString();
+        String fileNameNoExt = fileName.endsWith(".java") ? fileName.substring(0, fileName.length() - 5) : fileName;
+        String relPathStr = relativePath.toString().replace('\\', '/');
+        String fullClassName = pkg.isEmpty() ? fileNameNoExt : pkg + "." + fileNameNoExt;
+
+        for (String exClass : excludeClasses) {
+            String cleanClass = exClass.trim();
+            if (cleanClass.isEmpty()) continue;
+
+            if (fileName.equalsIgnoreCase(cleanClass) ||
+                fileNameNoExt.equalsIgnoreCase(cleanClass) ||
+                relPathStr.equalsIgnoreCase(cleanClass) ||
+                relPathStr.equalsIgnoreCase(cleanClass + ".java") ||
+                fullClassName.equalsIgnoreCase(cleanClass)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
