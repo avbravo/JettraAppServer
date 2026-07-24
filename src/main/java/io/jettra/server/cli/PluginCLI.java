@@ -158,11 +158,11 @@ public class PluginCLI {
                             if (line.contains("WidgetLet") && !line.contains("import ")) {
                                 inMenu = true;
                             }
+                            if (inMenu && (line.contains("Widget menu = Left.of") || line.contains("Left.of("))) {
+                                break; // Stop extraction once we hit the menu creation
+                            }
                             if (inMenu) {
                                 descriptor.append(line).append("\n");
-                            }
-                            if (inMenu && line.contains("Widget menu = Left.of")) {
-                                break; // Stop extraction once we hit the menu creation
                             }
                         }
                         extractedMenu = true;
@@ -504,6 +504,9 @@ public class PluginCLI {
                 continue;
             }
             if (inCode) {
+                if (line.contains("Widget menu = Left.of") || (line.contains("Left.of(") && line.contains("Widget menu"))) {
+                    continue;
+                }
                 codeLines.add(line);
                 Matcher m = Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(line);
                 if (m.find()) {
@@ -565,11 +568,19 @@ public class PluginCLI {
                     }
                 }
 
+                // Filter out any Left.of initialization from codeLines to protect Widget menu = Left.of
+                List<String> cleanCodeLines = new ArrayList<>();
+                for (String cl : codeLines) {
+                    if (!cl.contains("Widget menu = Left.of") && !(cl.contains("Left.of(") && cl.contains("Widget menu"))) {
+                        cleanCodeLines.add(cl);
+                    }
+                }
+
                 List<String> pluginSection = new ArrayList<>();
                 pluginSection.add("/**");
                 pluginSection.add("Start Plugin: " + pluginName);
                 pluginSection.add("**/");
-                pluginSection.addAll(codeLines);
+                pluginSection.addAll(cleanCodeLines);
                 pluginSection.add("/**");
                 pluginSection.add("End Plugin: " + pluginName);
                 pluginSection.add("**/");
@@ -600,26 +611,97 @@ public class PluginCLI {
                         newLines.add(line);
                     }
                     if (!inserted) {
-                        newLines.addAll(pluginSection);
+                        int insertPoint = -1;
+                        for (int i = newLines.size() - 1; i >= 0; i--) {
+                            String l = newLines.get(i).trim();
+                            if (l.startsWith("return Scaffold") || l.startsWith("return Column") || l.startsWith("return ")) {
+                                insertPoint = i;
+                                break;
+                            }
+                        }
+                        if (insertPoint == -1) {
+                            for (int i = newLines.size() - 1; i >= 0; i--) {
+                                if (newLines.get(i).trim().equals("}")) {
+                                    insertPoint = i;
+                                    break;
+                                }
+                            }
+                        }
+                        if (insertPoint == -1) {
+                            insertPoint = newLines.size();
+                        }
+                        List<String> toInsert = new ArrayList<>();
+                        toInsert.addAll(pluginSection);
+                        toInsert.add("");
+                        newLines.addAll(insertPoint, toInsert);
                     }
                 }
 
-                if (!variables.isEmpty()) {
-                    for (int i = 0; i < newLines.size(); i++) {
-                        String line = newLines.get(i);
-                        if (line.contains("Left.of(")) {
-                            List<String> missingVars = new ArrayList<>();
-                            for (String var : variables) {
-                                if (!line.contains(var)) {
-                                    missingVars.add(var);
-                                }
-                            }
-                            if (!missingVars.isEmpty()) {
-                                String varsStr = String.join(", ", missingVars) + ", ";
-                                line = line.replace("Left.of(", "Left.of(" + varsStr);
-                                newLines.set(i, line);
-                            }
+                int leftOfIndex = -1;
+                for (int i = 0; i < newLines.size(); i++) {
+                    if (newLines.get(i).contains("Left.of(")) {
+                        leftOfIndex = i;
+                        break;
+                    }
+                }
+
+                if (leftOfIndex == -1) {
+                    int insertPoint = -1;
+                    for (int i = newLines.size() - 1; i >= 0; i--) {
+                        String l = newLines.get(i).trim();
+                        if (l.startsWith("return Scaffold") || l.startsWith("return Column") || l.startsWith("return ")) {
+                            insertPoint = i;
                             break;
+                        }
+                    }
+                    if (insertPoint == -1) {
+                        for (int i = newLines.size() - 1; i >= 0; i--) {
+                            if (newLines.get(i).trim().equals("}")) {
+                                insertPoint = i;
+                                break;
+                            }
+                        }
+                    }
+                    if (insertPoint == -1) {
+                        insertPoint = newLines.size();
+                    }
+
+                    List<String> menuDecl = new ArrayList<>();
+                    menuDecl.add("        Widget menu = Left.of(");
+                    for (int v = 0; v < variables.size(); v++) {
+                        String suffix = (v == variables.size() - 1) ? "" : ",";
+                        menuDecl.add("                " + variables.get(v) + suffix);
+                    }
+                    menuDecl.add("        );");
+                    menuDecl.add("");
+
+                    newLines.addAll(insertPoint, menuDecl);
+                    leftOfIndex = insertPoint;
+                }
+
+                if (leftOfIndex != -1 && !variables.isEmpty()) {
+                    int searchEndIndex = Math.min(leftOfIndex + 35, newLines.size());
+                    for (String var : variables) {
+                        boolean alreadyPresent = false;
+                        for (int i = leftOfIndex; i < searchEndIndex; i++) {
+                            if (Pattern.compile("\\b" + Pattern.quote(var) + "\\b").matcher(newLines.get(i)).find()) {
+                                alreadyPresent = true;
+                                break;
+                            }
+                        }
+
+                        if (!alreadyPresent) {
+                            String leftLine = newLines.get(leftOfIndex);
+                            String trimmed = leftLine.trim();
+                            if (trimmed.endsWith("Left.of(") || trimmed.endsWith("Left.of( ")) {
+                                String indent = "                ";
+                                if (leftLine.contains("Widget menu")) {
+                                    indent = leftLine.substring(0, leftLine.indexOf("Widget menu")) + "                ";
+                                }
+                                newLines.add(leftOfIndex + 1, indent + var + ",");
+                            } else {
+                                newLines.set(leftOfIndex, leftLine.replace("Left.of(", "Left.of(" + var + ", "));
+                            }
                         }
                     }
                 }
@@ -801,16 +883,39 @@ public class PluginCLI {
             }
 
             if (!removedVariables.isEmpty()) {
+                int leftOfIndex = -1;
                 for (int i = 0; i < newLines.size(); i++) {
-                    String line = newLines.get(i);
-                    if (line.contains("Left.of(")) {
-                        for (String var : removedVariables) {
-                            line = line.replaceAll("\\b" + Pattern.quote(var) + "\\s*,\\s*", "");
-                            line = line.replaceAll(",\\s*\\b" + Pattern.quote(var) + "\\b", "");
-                            line = line.replaceAll("\\b" + Pattern.quote(var) + "\\b", "");
-                        }
-                        newLines.set(i, line);
+                    if (newLines.get(i).contains("Left.of(")) {
+                        leftOfIndex = i;
                         break;
+                    }
+                }
+
+                if (leftOfIndex != -1) {
+                    for (String var : removedVariables) {
+                        int searchEndIndex = Math.min(leftOfIndex + 35, newLines.size());
+                        for (int i = leftOfIndex; i < searchEndIndex && i < newLines.size(); i++) {
+                            String line = newLines.get(i);
+                            if (Pattern.compile("\\b" + Pattern.quote(var) + "\\b").matcher(line).find()) {
+                                String trimmed = line.trim();
+                                if (trimmed.equals(var) || trimmed.equals(var + ",") || trimmed.equals(var + " ,")) {
+                                    newLines.remove(i);
+                                    i--;
+                                    searchEndIndex--;
+                                } else {
+                                    String updated = line.replaceAll("\\b" + Pattern.quote(var) + "\\s*,\\s*", "")
+                                                        .replaceAll(",\\s*\\b" + Pattern.quote(var) + "\\b", "")
+                                                        .replaceAll("\\b" + Pattern.quote(var) + "\\b", "");
+                                    if (updated.trim().isEmpty()) {
+                                        newLines.remove(i);
+                                        i--;
+                                        searchEndIndex--;
+                                    } else {
+                                        newLines.set(i, updated);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
