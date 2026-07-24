@@ -70,23 +70,58 @@ Si omites `-path`, el generador construirá el plugin en el directorio donde te 
 
 ### 2. Instalar un Plugin en tu Proyecto
 
-Para instalar un plugin generado (o externo) dentro del proyecto actual en el que estás trabajando, debes pasarle la ruta donde se encuentra el código fuente del plugin:
+Puedes instalar un plugin indicando la ruta del proyecto del plugin o directamente el nombre del plugin si ya se encuentra añadido como archivo JAR / dependencia:
+
 ```bash
+./mvn-jettra install-plugin <nombre-plugin>
+```
+
+Ejemplos:
+```bash
+./mvn-jettra install-plugin ReportesPlugin
 ./mvn-jettra install-plugin /ruta/absoluta/a/ReportesPlugin
 ```
-*(También puedes usar una ruta relativa al directorio donde ejecutas el comando)*
 
 #### **¿Qué hace `install-plugin` bajo el capó?**
-1. **Compilación y Empaquetado**: Ejecuta `mvn clean install` dentro del directorio del plugin para compilarlo e instalarlo en tu repositorio Maven local (`~/.m2`).
-2. **Inyección de Dependencia**: Lee el `pom.xml` del plugin extraído y automáticamente agrega la etiqueta `<dependency>` correspondiente en el `pom.xml` de tu proyecto actual.
-3. **Inyección de Menús**: Analiza el archivo `plugin-descriptor.md` dentro de la carpeta del plugin. Si encuentra bloques de código definiendo menús (variables `WidgetLet`), buscará tu archivo `TemplatePage.java` local e inyectará ese código automáticamente. Finalmente, agregará dichas variables directamente en la invocación de la barra lateral `Left.of(...)` para que los menús aparezcan inmediatamente tras reiniciar tu servidor.
+1. **Compilación e Inyección de Dependencia** (Si se especifica directorio): Ejecuta `mvn clean install` en la carpeta del plugin e inyecta automáticamente la dependencia `<dependency>` en el `pom.xml` de tu proyecto actual.
+2. **Lectura de Descriptor en Archivo `.jar` / Directorio**: Busca el archivo `plugin-descriptor.md` en el directorio del plugin o en el archivo `.jar` del repositorio Maven local (`~/.m2/repository`).
+3. **Inyección de Menús con Marcadores en `TemplatePage.java`**: Extrae las definiciones de menú (`WidgetLet`) y crea/actualiza en `TemplatePage.java` una sección delimitada por los marcadores:
+   ```java
+   /**
+   Start Plugin: <nombre-plugin>
+   **/
+   WidgetLet reportesMenu = ...;
+   /**
+   End Plugin: <nombre-plugin>
+   **/
+   ```
+   Y agrega automáticamente las variables a la barra lateral `Left.of(...)`. Si el plugin ya fue instalado previamente, la sección es actualizada en el mismo lugar sin duplicar código.
 
 ### 3. Remover un Plugin
 
-Comando para gestionar la eliminación lógica del entorno (no borra archivos físicamente para prevenir pérdidas):
+Para remover la configuración de un plugin previamente instalado en tu proyecto:
+
+```bash
+./mvn-jettra remove-plugin <nombre-plugin>
+```
+Ejemplo:
 ```bash
 ./mvn-jettra remove-plugin ReportesPlugin
 ```
+
+#### **¿Qué hace `remove-plugin` bajo el capó?**
+1. **Eliminación de la Dependencia en `pom.xml`**: Busca la declaración `<dependency>` correspondiente al plugin en tu archivo `pom.xml` local y la remueve automáticamente.
+2. **Remoción de la Sección en `TemplatePage.java`**: Identifica y elimina la sección de código delimitada por:
+   ```java
+   /**
+   Start Plugin: <nombre-plugin>
+   **/
+
+   /**
+   End Plugin: <nombre-plugin>
+   **/
+   ```
+   Y remueve automáticamente las variables de menú vinculadas de la invocación `Left.of(...)` en `TemplatePage.java`.
 
 ---
 

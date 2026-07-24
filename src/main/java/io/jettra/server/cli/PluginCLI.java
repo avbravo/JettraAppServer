@@ -174,6 +174,7 @@ public class PluginCLI {
             }
             descriptor.append("```\n");
             Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
+            Files.write(targetDir.resolve("src/main/resources/plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
             
             // 3. Generate messages files
             String msgEn = "greeting=Hello from " + pluginName + "\n";
@@ -427,79 +428,98 @@ public class PluginCLI {
 
     private static void installPlugin(String pluginPathStr) {
         Path pluginPath = Paths.get(pluginPathStr);
-        if (!Files.exists(pluginPath)) {
-            System.err.println("Plugin path does not exist: " + pluginPathStr);
+        String pluginName = pluginPath.getFileName().toString();
+        if (pluginName.toLowerCase().endsWith(".jar")) {
+            pluginName = pluginName.substring(0, pluginName.length() - 4);
+        }
+
+        System.out.println("Installing plugin: " + pluginName);
+
+        List<String> descLines = new ArrayList<>();
+
+        if (Files.isDirectory(pluginPath)) {
+            Path pluginPom = pluginPath.resolve("pom.xml");
+            if (Files.exists(pluginPom)) {
+                System.out.println("Building plugin from local directory...");
+                runCommand(new String[]{"mvn", "clean", "install"}, pluginPath);
+
+                Path localPom = Paths.get("pom.xml");
+                if (Files.exists(localPom)) {
+                    try {
+                        String pPomContent = new String(Files.readAllBytes(pluginPom), StandardCharsets.UTF_8);
+                        String groupId = extractTag(pPomContent, "groupId");
+                        String artifactId = extractTag(pPomContent, "artifactId");
+                        String version = extractTag(pPomContent, "version");
+
+                        if (groupId != null && artifactId != null && version != null) {
+                            String dependency = "        <dependency>\n" +
+                                                "            <groupId>" + groupId + "</groupId>\n" +
+                                                "            <artifactId>" + artifactId + "</artifactId>\n" +
+                                                "            <version>" + version + "</version>\n" +
+                                                "        </dependency>\n";
+                            
+                            String lPomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
+                            if (!lPomContent.contains("<artifactId>" + artifactId + "</artifactId>")) {
+                                lPomContent = lPomContent.replaceFirst("</dependencies>", dependency + "    </dependencies>");
+                                Files.write(localPom, lPomContent.getBytes(StandardCharsets.UTF_8));
+                                System.out.println("Added dependency to pom.xml.");
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Error injecting dependency: " + e.getMessage());
+                    }
+                }
+            }
+
+            Path descriptor = pluginPath.resolve("plugin-descriptor.md");
+            if (Files.exists(descriptor)) {
+                try {
+                    descLines = Files.readAllLines(descriptor, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    System.err.println("Error reading descriptor file: " + e.getMessage());
+                }
+            }
+        }
+
+        if (descLines.isEmpty()) {
+            descLines = findAndReadPluginDescriptor(pluginPathStr);
+        }
+
+        if (descLines.isEmpty()) {
+            System.out.println("Warning: plugin-descriptor.md not found for plugin: " + pluginName);
             return;
         }
 
-        System.out.println("Installing plugin from: " + pluginPathStr);
+        boolean inCode = false;
+        List<String> codeLines = new ArrayList<>();
+        List<String> variables = new ArrayList<>();
 
-        // 1. Build the plugin
-        runCommand(new String[]{"mvn", "clean", "install"}, pluginPath);
-
-        // 2. Add dependency to local pom.xml
-        Path localPom = Paths.get("pom.xml");
-        Path pluginPom = pluginPath.resolve("pom.xml");
-        
-        if (Files.exists(localPom) && Files.exists(pluginPom)) {
-            try {
-                String pPomContent = new String(Files.readAllBytes(pluginPom), StandardCharsets.UTF_8);
-                String groupId = extractTag(pPomContent, "groupId");
-                String artifactId = extractTag(pPomContent, "artifactId");
-                String version = extractTag(pPomContent, "version");
-
-                if (groupId != null && artifactId != null && version != null) {
-                    String dependency = "        <dependency>\n" +
-                                        "            <groupId>" + groupId + "</groupId>\n" +
-                                        "            <artifactId>" + artifactId + "</artifactId>\n" +
-                                        "            <version>" + version + "</version>\n" +
-                                        "        </dependency>\n";
-                    
-                    String lPomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
-                    if (!lPomContent.contains("<artifactId>" + artifactId + "</artifactId>")) {
-                        lPomContent = lPomContent.replaceFirst("</dependencies>", dependency + "    </dependencies>");
-                        Files.write(localPom, lPomContent.getBytes(StandardCharsets.UTF_8));
-                        System.out.println("Added dependency to pom.xml.");
-                    }
+        for (String line : descLines) {
+            if (line.startsWith("```java")) {
+                inCode = true;
+                continue;
+            }
+            if (inCode && line.startsWith("```")) {
+                inCode = false;
+                continue;
+            }
+            if (inCode) {
+                codeLines.add(line);
+                Matcher m = Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(line);
+                if (m.find()) {
+                    variables.add(m.group(1));
                 }
-            } catch (Exception e) {
-                System.err.println("Error injecting dependency: " + e.getMessage());
             }
         }
 
-        // 3. Inject menu into TemplatePage.java
-        Path descriptor = pluginPath.resolve("plugin-descriptor.md");
-        if (Files.exists(descriptor)) {
+        if (!codeLines.isEmpty()) {
             try {
-                List<String> descLines = Files.readAllLines(descriptor, StandardCharsets.UTF_8);
-                boolean inCode = false;
-                List<String> codeLines = new ArrayList<>();
-                List<String> variables = new ArrayList<>();
-
-                for (String line : descLines) {
-                    if (line.startsWith("```java")) {
-                        inCode = true;
-                        continue;
-                    }
-                    if (inCode && line.startsWith("```")) {
-                        inCode = false;
-                        continue;
-                    }
-                    if (inCode) {
-                        codeLines.add(line);
-                        Matcher m = Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(line);
-                        if (m.find()) {
-                            variables.add(m.group(1));
-                        }
-                    }
-                }
-
-                if (!codeLines.isEmpty() && !variables.isEmpty()) {
-                    injectIntoTemplatePage(codeLines, variables);
-                }
+                injectIntoTemplatePage(pluginName, codeLines, variables);
             } catch (Exception e) {
                 System.err.println("Error injecting into TemplatePage.java: " + e.getMessage());
             }
+        } else {
+            System.out.println("No menu code block (```java ... ```) found in plugin-descriptor.md for plugin: " + pluginName);
         }
     }
 
@@ -511,7 +531,7 @@ public class PluginCLI {
         return null;
     }
 
-    private static void injectIntoTemplatePage(List<String> codeLines, List<String> variables) throws IOException {
+    private static void injectIntoTemplatePage(String pluginName, List<String> codeLines, List<String> variables) throws IOException {
         Path localSrc = Paths.get("src/main/java");
         if (!Files.exists(localSrc)) return;
 
@@ -520,32 +540,286 @@ public class PluginCLI {
             if (templatePageOpt.isPresent()) {
                 Path tp = templatePageOpt.get();
                 List<String> lines = Files.readAllLines(tp, StandardCharsets.UTF_8);
-                List<String> newLines = new ArrayList<>();
-                boolean injectedCode = false;
                 
-                for (String line : lines) {
-                    if (line.contains("Widget menu = Left.of(")) {
-                        if (!injectedCode) {
-                            newLines.addAll(codeLines);
-                            injectedCode = true;
+                String startTag = "Start Plugin: " + pluginName;
+                String endTag = "End Plugin: " + pluginName;
+
+                int existingStartHeader = -1;
+                int existingStartLine = -1;
+                int existingEndLine = -1;
+                int existingEndFooter = -1;
+
+                for (int i = 0; i < lines.size(); i++) {
+                    String line = lines.get(i);
+                    if (line.contains(startTag)) {
+                        existingStartLine = i;
+                        if (i > 0 && lines.get(i - 1).trim().equals("/**")) {
+                            existingStartHeader = i - 1;
                         }
-                        String varsStr = String.join(", ", variables) + ", ";
-                        line = line.replace("Left.of(", "Left.of(" + varsStr);
                     }
-                    newLines.add(line);
+                    if (line.contains(endTag)) {
+                        existingEndLine = i;
+                        if (i + 1 < lines.size() && lines.get(i + 1).trim().equals("**/")) {
+                            existingEndFooter = i + 1;
+                        }
+                    }
                 }
-                
-                if (injectedCode) {
-                    Files.write(tp, newLines, StandardCharsets.UTF_8);
-                    System.out.println("Injected menus into TemplatePage.java successfully.");
+
+                List<String> pluginSection = new ArrayList<>();
+                pluginSection.add("/**");
+                pluginSection.add("Start Plugin: " + pluginName);
+                pluginSection.add("**/");
+                pluginSection.addAll(codeLines);
+                pluginSection.add("/**");
+                pluginSection.add("End Plugin: " + pluginName);
+                pluginSection.add("**/");
+
+                List<String> newLines = new ArrayList<>();
+
+                if (existingStartLine != -1 && existingEndLine != -1) {
+                    int removeStart = (existingStartHeader != -1) ? existingStartHeader : existingStartLine;
+                    int removeEnd = (existingEndFooter != -1) ? existingEndFooter : existingEndLine;
+
+                    for (int i = 0; i < lines.size(); i++) {
+                        if (i == removeStart) {
+                            newLines.addAll(pluginSection);
+                        }
+                        if (i >= removeStart && i <= removeEnd) {
+                            continue;
+                        }
+                        newLines.add(lines.get(i));
+                    }
+                } else {
+                    boolean inserted = false;
+                    for (String line : lines) {
+                        if (!inserted && (line.contains("Widget menu = Left.of(") || line.contains("Left.of("))) {
+                            newLines.addAll(pluginSection);
+                            newLines.add("");
+                            inserted = true;
+                        }
+                        newLines.add(line);
+                    }
+                    if (!inserted) {
+                        newLines.addAll(pluginSection);
+                    }
                 }
+
+                if (!variables.isEmpty()) {
+                    for (int i = 0; i < newLines.size(); i++) {
+                        String line = newLines.get(i);
+                        if (line.contains("Left.of(")) {
+                            List<String> missingVars = new ArrayList<>();
+                            for (String var : variables) {
+                                if (!line.contains(var)) {
+                                    missingVars.add(var);
+                                }
+                            }
+                            if (!missingVars.isEmpty()) {
+                                String varsStr = String.join(", ", missingVars) + ", ";
+                                line = line.replace("Left.of(", "Left.of(" + varsStr);
+                                newLines.set(i, line);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                Files.write(tp, newLines, StandardCharsets.UTF_8);
+                System.out.println("Injected plugin menu section for '" + pluginName + "' into TemplatePage.java successfully.");
+            } else {
+                System.out.println("TemplatePage.java not found in src/main/java");
             }
         }
     }
 
+    private static List<String> findAndReadPluginDescriptor(String target) {
+        Path p = Paths.get(target);
+
+        if (Files.isDirectory(p)) {
+            Path descriptor = p.resolve("plugin-descriptor.md");
+            if (Files.exists(descriptor)) {
+                try {
+                    return Files.readAllLines(descriptor, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    System.err.println("Error reading plugin-descriptor.md from directory: " + e.getMessage());
+                }
+            }
+        }
+
+        if (Files.isRegularFile(p) && target.toLowerCase().endsWith(".jar")) {
+            List<String> lines = readDescriptorFromJar(p);
+            if (lines != null) return lines;
+        }
+
+        String userHome = System.getProperty("user.home");
+        Path m2Dir = Paths.get(userHome, ".m2", "repository");
+        if (Files.exists(m2Dir)) {
+            try (java.util.stream.Stream<Path> stream = Files.walk(m2Dir)) {
+                Optional<Path> jarOpt = stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String name = path.getFileName().toString().toLowerCase();
+                        String tLower = target.toLowerCase();
+                        return name.endsWith(".jar") && name.contains(tLower) && !name.endsWith("-sources.jar") && !name.endsWith("-javadoc.jar");
+                    })
+                    .findFirst();
+
+                if (jarOpt.isPresent()) {
+                    System.out.println("Found plugin JAR: " + jarOpt.get());
+                    List<String> lines = readDescriptorFromJar(jarOpt.get());
+                    if (lines != null) return lines;
+                }
+            } catch (IOException e) {
+                System.err.println("Error searching ~/.m2/repository: " + e.getMessage());
+            }
+        }
+
+        return Collections.emptyList();
+    }
+
+    private static List<String> readDescriptorFromJar(Path jarPath) {
+        try (java.util.jar.JarFile jarFile = new java.util.jar.JarFile(jarPath.toFile())) {
+            java.util.jar.JarEntry entry = jarFile.getJarEntry("plugin-descriptor.md");
+            if (entry == null) {
+                entry = jarFile.getJarEntry("META-INF/plugin-descriptor.md");
+            }
+            if (entry != null) {
+                try (java.io.InputStream is = jarFile.getInputStream(entry);
+                     java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is, StandardCharsets.UTF_8))) {
+                    List<String> lines = new ArrayList<>();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        lines.add(line);
+                    }
+                    return lines;
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading JAR file: " + e.getMessage());
+        }
+        return null;
+    }
+
     private static void removePlugin(String pluginName) {
-        System.out.println("Removing plugin: " + pluginName);
-        System.out.println("To remove from your project, delete the dependency in pom.xml");
+        System.out.println("Removing plugin configuration for: " + pluginName);
+
+        // 1. Remove dependency from local pom.xml
+        removeFromPomXml(pluginName);
+
+        // 2. Remove section and variables from TemplatePage.java
+        removeFromTemplatePage(pluginName);
+    }
+
+    private static void removeFromPomXml(String pluginName) {
+        Path localPom = Paths.get("pom.xml");
+        if (!Files.exists(localPom)) {
+            System.out.println("No pom.xml found in current directory.");
+            return;
+        }
+
+        try {
+            String pomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
+            String pluginNameLower = pluginName.toLowerCase();
+
+            Pattern pattern = Pattern.compile(
+                "(?s)\\s*<dependency>\\s*<groupId>[^<]+</groupId>\\s*<artifactId>(" + Pattern.quote(pluginName) + "|" + Pattern.quote(pluginNameLower) + ")</artifactId>\\s*<version>[^<]+</version>\\s*</dependency>"
+            );
+
+            Matcher matcher = pattern.matcher(pomContent);
+            if (matcher.find()) {
+                String updatedPom = matcher.replaceAll("");
+                Files.write(localPom, updatedPom.getBytes(StandardCharsets.UTF_8));
+                System.out.println("Removed dependency '" + pluginName + "' from pom.xml.");
+            } else {
+                System.out.println("Dependency '" + pluginName + "' not found in pom.xml.");
+            }
+        } catch (Exception e) {
+            System.err.println("Error removing dependency from pom.xml: " + e.getMessage());
+        }
+    }
+
+    private static void removeFromTemplatePage(String pluginName) {
+        Path localSrc = Paths.get("src/main/java");
+        if (!Files.exists(localSrc)) return;
+
+        try (java.util.stream.Stream<Path> stream = Files.walk(localSrc)) {
+            Optional<Path> templatePageOpt = stream.filter(p -> p.getFileName().toString().equals("TemplatePage.java")).findFirst();
+            if (!templatePageOpt.isPresent()) {
+                System.out.println("TemplatePage.java not found in src/main/java");
+                return;
+            }
+
+            Path tp = templatePageOpt.get();
+            List<String> lines = Files.readAllLines(tp, StandardCharsets.UTF_8);
+            
+            String startTag = "Start Plugin: " + pluginName;
+            String endTag = "End Plugin: " + pluginName;
+
+            int existingStartHeader = -1;
+            int existingStartLine = -1;
+            int existingEndLine = -1;
+            int existingEndFooter = -1;
+
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                if (line.contains(startTag)) {
+                    existingStartLine = i;
+                    if (i > 0 && lines.get(i - 1).trim().equals("/**")) {
+                        existingStartHeader = i - 1;
+                    }
+                }
+                if (line.contains(endTag)) {
+                    existingEndLine = i;
+                    if (i + 1 < lines.size() && lines.get(i + 1).trim().equals("**/")) {
+                        existingEndFooter = i + 1;
+                    }
+                }
+            }
+
+            if (existingStartLine == -1 || existingEndLine == -1) {
+                System.out.println("Plugin section for '" + pluginName + "' not found in TemplatePage.java.");
+                return;
+            }
+
+            int removeStart = (existingStartHeader != -1) ? existingStartHeader : existingStartLine;
+            int removeEnd = (existingEndFooter != -1) ? existingEndFooter : existingEndLine;
+
+            List<String> removedVariables = new ArrayList<>();
+            for (int i = removeStart; i <= removeEnd; i++) {
+                Matcher m = Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(lines.get(i));
+                if (m.find()) {
+                    removedVariables.add(m.group(1));
+                }
+            }
+
+            List<String> newLines = new ArrayList<>();
+            for (int i = 0; i < lines.size(); i++) {
+                if (i >= removeStart && i <= removeEnd) {
+                    continue;
+                }
+                newLines.add(lines.get(i));
+            }
+
+            if (!removedVariables.isEmpty()) {
+                for (int i = 0; i < newLines.size(); i++) {
+                    String line = newLines.get(i);
+                    if (line.contains("Left.of(")) {
+                        for (String var : removedVariables) {
+                            line = line.replaceAll("\\b" + Pattern.quote(var) + "\\s*,\\s*", "");
+                            line = line.replaceAll(",\\s*\\b" + Pattern.quote(var) + "\\b", "");
+                            line = line.replaceAll("\\b" + Pattern.quote(var) + "\\b", "");
+                        }
+                        newLines.set(i, line);
+                        break;
+                    }
+                }
+            }
+
+            Files.write(tp, newLines, StandardCharsets.UTF_8);
+            System.out.println("Removed plugin menu section for '" + pluginName + "' from TemplatePage.java successfully.");
+        } catch (Exception e) {
+            System.err.println("Error removing plugin from TemplatePage.java: " + e.getMessage());
+        }
     }
 
     private static void runCommand(String[] cmd, Path workDir) {
